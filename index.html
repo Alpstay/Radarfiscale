@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar fiscale — AlpStay / Saslong Srl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Belleza&family=Lato:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* ============================================================
+   CONFIGURAZIONE FIREBASE — progetto "ordinibestellungen"
+   Copia i valori da: console Firebase > Impostazioni progetto >
+   Le tue app > app web > "Configurazione SDK" (npm/config).
+   Se apiKey resta vuota la pagina lavora con la memoria del browser.
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "ordinibestellungen.firebaseapp.com",
+  databaseURL: "https://ordinibestellungen-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "ordinibestellungen",
+  storageBucket: "ordinibestellungen.appspot.com",
+  messagingSenderId: "",
+  appId: ""
+};
+const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa app
+</script>
+<style>
+  :root{
+    --oro:#B08D3A;
+    --oro-chiaro:#E8DCBE;
+    --nero:#000000;
+    --grigio:#5A5A5A;
+    --linea:#E3DED2;
+    --carta:#FBFAF7;
+    --scaduta:#8C2F1E;
+    --critica:#C4551F;
+    --preallarme:#B8860B;
+    --ok:#2F6B4F;
+    --bianco:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bianco);
+    color:var(--nero);
+    font-family:'Lato',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Belleza','Optima','Palatino Linotype',serif;font-weight:400;letter-spacing:.01em}
+  a{color:var(--oro)}
+  button{font-family:inherit;font-size:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:15px;color:var(--nero)}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  /* ---------- intestazione ---------- */
+  header{border-bottom:1px solid var(--linea);background:var(--bianco);position:sticky;top:0;z-index:20}
+  .topbar{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:16px 0 12px}
+  .marchio{font-family:'Belleza',serif;font-size:27px;line-height:1.1}
+  .marchio span{color:var(--oro)}
+  .sottotitolo{color:var(--grigio);font-size:14px}
+  .oggi{margin-left:auto;font-size:14px;color:var(--grigio)}
+  nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{
+    background:none;border:none;border-bottom:3px solid transparent;
+    padding:10px 14px;color:var(--grigio);white-space:nowrap;font-size:15px;
+  }
+  nav button.attivo{color:var(--nero);border-bottom-color:var(--oro);font-weight:700}
+  nav button:focus-visible{outline:2px solid var(--oro);outline-offset:-2px}
+  .pallino{display:inline-block;min-width:19px;height:19px;line-height:19px;border-radius:10px;background:var(--scaduta);color:#fff;font-size:12px;text-align:center;margin-left:6px;padding:0 5px}
+
+  /* ---------- righello dei 90 giorni ---------- */
+  .righello{margin:26px 0 8px;position:relative;height:96px}
+  .asse{position:absolute;left:0;right:0;top:56px;height:2px;background:var(--linea)}
+  .mese{position:absolute;top:62px;font-size:12px;color:var(--grigio);transform:translateX(-50%);white-space:nowrap}
+  .mese b{display:block;width:1px;height:8px;background:var(--linea);margin:0 auto 3px}
+  .tacca{position:absolute;top:20px;transform:translateX(-50%);text-align:center;cursor:pointer;background:none;border:none;padding:0}
+  .tacca i{display:block;width:11px;height:11px;border-radius:50%;margin:0 auto;border:2px solid var(--bianco)}
+  .tacca u{display:block;width:1px;height:26px;background:var(--linea);margin:0 auto}
+  .tacca em{display:block;font-style:normal;font-size:11px;color:var(--grigio);margin-bottom:3px}
+  .tacca.alta em{color:var(--nero);font-weight:700}
+  .oggi-tacca{position:absolute;top:40px;bottom:20px;width:1px;background:var(--oro)}
+  .oggi-tacca span{position:absolute;top:-18px;left:-14px;font-size:11px;color:var(--oro)}
+
+  /* ---------- blocchi ---------- */
+  section{padding:8px 0 40px}
+  .titolo-sez{font-size:22px;margin:30px 0 4px}
+  .intro-sez{color:var(--grigio);font-size:14px;margin:0 0 16px;max-width:64ch}
+
+  .allerta{border:1px solid var(--linea);border-left:5px solid var(--grigio);padding:14px 16px;margin-bottom:10px;background:var(--carta)}
+  .allerta.scaduta{border-left-color:var(--scaduta)}
+  .allerta.critica{border-left-color:var(--critica)}
+  .allerta.preallarme{border-left-color:var(--preallarme)}
+  .allerta.prossima{border-left-color:var(--ok)}
+  .allerta-testa{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+  .conto{font-family:'Belleza',serif;font-size:20px}
+  .conto.scaduta{color:var(--scaduta)}
+  .conto.critica{color:var(--critica)}
+  .conto.preallarme{color:var(--preallarme)}
+  .conto.prossima{color:var(--ok)}
+  .data-sc{font-size:13px;color:var(--grigio)}
+  .allerta h4{margin:6px 0 2px;font-size:17px;font-weight:700}
+  .allerta p{margin:2px 0;font-size:14.5px}
+  .azioni-riga{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+  .bottone{border:1px solid var(--nero);background:var(--bianco);padding:7px 14px;font-size:14px}
+  .bottone:hover{background:var(--nero);color:var(--bianco)}
+  .bottone.oro{border-color:var(--oro);background:var(--oro);color:var(--bianco)}
+  .bottone.oro:hover{background:#8f7028;border-color:#8f7028}
+  .bottone.piccolo{padding:4px 10px;font-size:13px}
+  .bottone:focus-visible{outline:2px solid var(--oro);outline-offset:2px}
+  .bottone[disabled]{opacity:.45;cursor:not-allowed}
+
+  /* ---------- schede voce ---------- */
+  .voce{border-top:1px solid var(--linea);padding:16px 0}
+  .voce:last-child{border-bottom:1px solid var(--linea)}
+  .voce-testa{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
+  .voce-testa h3{margin:0;font-size:19px;flex:1}
+  .rilevanza{font-size:12px;padding:2px 9px;border:1px solid;border-radius:2px;white-space:nowrap;margin-top:3px}
+  .rilevanza.alta{color:var(--scaduta);border-color:var(--scaduta);background:#fdf3f0}
+  .rilevanza.media{color:var(--preallarme);border-color:var(--preallarme);background:#fdf8ea}
+  .rilevanza.bassa{color:var(--grigio);border-color:var(--linea)}
+  .rilevanza.nulla{color:var(--grigio);border-color:var(--linea);text-decoration:line-through}
+  .verdetto{display:inline-block;font-size:12.5px;font-weight:700;padding:4px 11px;color:#fff;border-radius:2px;white-space:nowrap;margin-top:3px}
+  .verdetto.subito{background:var(--scaduta)}
+  .verdetto.studio{background:var(--oro)}
+  .verdetto.preparare{background:var(--ok)}
+  .verdetto.sapere{background:#8A8A8A}
+  .verdetto.ignorare{background:#BDB8AC}
+  .in-pratica{font-size:16.5px;margin:5px 0 0;max-width:70ch}
+  .per-esempio{font-size:14px;color:var(--grigio);margin:8px 0 0;max-width:70ch;border-left:2px solid var(--oro-chiaro);padding-left:11px}
+  .chi{font-size:12.5px;color:var(--grigio);margin:6px 0 0}
+  .gruppo-mosse{margin:26px 0 10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .gruppo-mosse h3{margin:0;font-size:19px;color:var(--grigio);font-weight:400}
+  .mossa{border:1px solid var(--linea);border-top:4px solid var(--linea);padding:14px 16px;margin-bottom:10px;background:var(--bianco)}
+  .mossa.subito{border-top-color:var(--scaduta)}
+  .mossa.studio{border-top-color:var(--oro)}
+  .mossa.preparare{border-top-color:var(--ok)}
+  .mossa h4{margin:6px 0 0;font-size:18px;font-weight:700}
+  .mossa .quando{font-size:13px;color:var(--grigio)}
+  .rif{font-size:13px;color:var(--grigio);margin:3px 0 0}
+  .tag{display:inline-block;font-size:12px;color:var(--grigio);border:1px solid var(--linea);padding:1px 8px;margin:6px 6px 0 0;border-radius:2px;background:var(--carta)}
+  .corpo{display:none;padding:10px 0 0}
+  .voce.aperta .corpo{display:block}
+  .campo{margin:12px 0}
+  .campo h5{margin:0 0 2px;font-size:13px;color:var(--grigio);font-weight:700}
+  .campo p{margin:0;font-size:15px;max-width:72ch}
+  .campo.opportunita{border-left:3px solid var(--oro);padding-left:12px}
+  .scadenza-riga{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:6px 0;border-bottom:1px dotted var(--linea)}
+  .scadenza-riga b{font-family:'Belleza',serif;font-size:16px;min-width:104px}
+  .fatta{text-decoration:line-through;color:var(--grigio)}
+  textarea.nota{width:100%;min-height:64px;border:1px solid var(--linea);padding:8px;background:var(--carta);resize:vertical}
+  select.stato{border:1px solid var(--linea);padding:5px 8px;background:var(--bianco)}
+
+  /* ---------- filtri ---------- */
+  .filtri{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 18px}
+  .filtri input[type=search]{flex:1;min-width:220px;border:none;border-bottom:2px solid var(--nero);padding:8px 2px;background:none;font-size:17px}
+  .filtri input[type=search]:focus{outline:none;border-bottom-color:var(--oro)}
+  .filtri select{border:1px solid var(--linea);padding:7px 9px;background:var(--bianco)}
+  .contatore{font-size:13px;color:var(--grigio)}
+
+  /* ---------- moduli ---------- */
+  .modulo{border:1px solid var(--linea);padding:18px;background:var(--carta);margin-bottom:24px}
+  .modulo h3{margin:0 0 4px;font-size:20px}
+  .modulo p.aiuto{margin:0 0 14px;font-size:14px;color:var(--grigio);max-width:70ch}
+  .griglia{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .griglia label{display:block;font-size:13px;color:var(--grigio);margin-bottom:3px}
+  .griglia input,.griglia select,.griglia textarea{width:100%;border:1px solid var(--linea);padding:8px;background:var(--bianco)}
+  .larga{grid-column:1 / -1}
+  textarea.incolla{width:100%;min-height:190px;border:1px solid var(--linea);padding:10px;background:var(--bianco);font-size:14px;resize:vertical}
+  .zona-pdf{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:2px dashed var(--oro-chiaro);padding:16px;margin-bottom:12px;background:var(--bianco);font-size:14px;color:var(--grigio)}
+  .zona-pdf.sopra{border-color:var(--oro);background:#FDF9EE}
+  .esito{font-size:14px;margin-top:10px;min-height:20px}
+  .esito.errore{color:var(--scaduta)}
+  .anteprima{border:1px solid var(--oro);padding:12px;margin-top:14px;background:var(--bianco)}
+  .anteprima label{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dotted var(--linea);font-size:14.5px}
+  .vuoto{color:var(--grigio);font-size:15px;padding:24px 0;max-width:60ch}
+
+  footer{border-top:1px solid var(--linea);padding:18px 0 40px;color:var(--grigio);font-size:13px}
+  #accesso{position:fixed;inset:0;background:var(--bianco);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+  #accesso[hidden]{display:none}
+  .scheda-accesso{width:100%;max-width:380px;border:1px solid var(--linea);padding:28px;background:var(--carta)}
+  .scheda-accesso h2{margin:0 0 4px;font-size:24px}
+  .scheda-accesso p{margin:0 0 18px;color:var(--grigio);font-size:14px}
+  .scheda-accesso label{display:block;font-size:13px;color:var(--grigio);margin:10px 0 3px}
+  .scheda-accesso input{width:100%;border:1px solid var(--linea);padding:9px;background:var(--bianco)}
+  .utente{font-size:13px;color:var(--grigio);display:flex;gap:10px;align-items:center}
+  .avviso-memoria{background:#FDF6E3;border:1px solid var(--oro-chiaro);padding:10px 14px;font-size:14px;margin:14px 0}
+
+  @media (max-width:720px){
+    .griglia{grid-template-columns:1fr}
+    .marchio{font-size:23px}
+    .righello{height:110px}
+    .tacca em{display:none}
+    .oggi{margin-left:0;width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="marchio">Radar <span>fiscale</span></div>
+        <div class="sottotitolo">Saslong Srl · Smart Hotel Saslong · gruppo AlpStay</div>
+      </div>
+      <div class="oggi"><span id="dataOggi"></span><span class="utente" id="utenteAttivo" hidden> · <span id="utenteEmail"></span> <button class="bottone piccolo" id="btnEsci">Esci</button></span></div>
+    </div>
+    <nav>
+      <button data-vista="cruscotto" class="attivo">Cosa scade adesso<span class="pallino" id="badgeAllerte" hidden></span></button>
+      <button data-vista="scadenzario">Scadenzario</button>
+      <button data-vista="archivio">Archivio</button>
+      <button data-vista="aggiungi">Nuova circolare</button>
+      <button data-vista="impostazioni">Impostazioni</button>
+    </nav>
+  </div>
+</header>
+
+<div id="accesso" hidden>
+  <div class="scheda-accesso">
+    <div class="marchio">Radar <span>fiscale</span></div>
+    <p>Archivio condiviso della Saslong Srl. Accedi con l'account dell'ufficio.</p>
+    <label for="accEmail">E-mail</label><input id="accEmail" type="email" autocomplete="username">
+    <label for="accPassword">Password</label><input id="accPassword" type="password" autocomplete="current-password">
+    <div class="azioni-riga" style="margin-top:16px"><button class="bottone oro" id="btnAccedi">Accedi</button></div>
+    <div class="esito errore" id="esitoAccesso"></div>
+  </div>
+</div>
+<main class="wrap">
+
+  <!-- ============ CRUSCOTTO ============ -->
+  <section id="vista-cruscotto">
+    <div class="righello" id="righello"></div>
+    <h2 class="titolo-sez">Da gestire</h2>
+    <p class="intro-sez">Ogni scadenza compare qui appena entra nella finestra di preavviso impostata. Le voci in rosso sono già scadute o mancano meno di sette giorni.</p>
+    <div id="listaAllerte"></div>
+
+    <h2 class="titolo-sez">Le mosse per la Saslong</h2>
+    <p class="intro-sez">Ogni novità ridotta a una frase: che cosa facciamo, chi se ne occupa e un esempio con i numeri. Quando una mossa è finita, chiudila e sparisce da qui.</p>
+    <div id="listaMosse"></div>
+  </section>
+
+  <!-- ============ SCADENZARIO ============ -->
+  <section id="vista-scadenzario" hidden>
+    <h2 class="titolo-sez">Scadenzario</h2>
+    <p class="intro-sez">Tutte le date raccolte dalle circolari, in ordine. Scarica il calendario e importalo in Google Calendar o Outlook: il promemoria arriva anche senza aprire questa pagina.</p>
+    <div class="azioni-riga">
+      <button class="bottone oro" id="btnIcs">Scarica calendario (.ics)</button>
+      <button class="bottone" id="btnRiepilogo">Copia riepilogo per il commercialista</button>
+      <label style="font-size:14px;color:var(--grigio);display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="mostraFatte"> mostra anche quelle già gestite
+      </label>
+    </div>
+    <div id="listaScadenze" style="margin-top:18px"></div>
+  </section>
+
+  <!-- ============ ARCHIVIO ============ -->
+  <section id="vista-archivio" hidden>
+    <h2 class="titolo-sez">Archivio</h2>
+    <p class="intro-sez">Tutte le novità archiviate, comprese quelle che non ci riguardano: servono per ritrovare in fretta la norma quando serve.</p>
+    <div class="filtri">
+      <input type="search" id="cerca" placeholder="Cerca: IVA, auto, immobili, 148/2026…" aria-label="Cerca nell'archivio">
+      <select id="fVerdetto" aria-label="Filtra per che cosa fare"><option value="">Che cosa fare: tutto</option><option value="subito">Fare subito</option><option value="studio">Chiedere allo studio</option><option value="preparare">Preparare in ufficio</option><option value="sapere">Solo da sapere</option><option value="ignorare">Non ci riguarda</option></select>
+      <select id="fRilevanza" aria-label="Filtra per rilevanza"><option value="">Tutte le rilevanze</option><option value="alta">Alta</option><option value="media">Media</option><option value="bassa">Bassa</option><option value="nulla">Non applicabile</option></select>
+      <select id="fCategoria" aria-label="Filtra per argomento"><option value="">Tutti gli argomenti</option></select>
+      <select id="fStato" aria-label="Filtra per stato"><option value="">Tutti gli stati</option><option value="da valutare">Da valutare</option><option value="in corso">In corso</option><option value="chiusa">Chiusa</option><option value="non applicabile">Non applicabile</option></select>
+    </div>
+    <div class="contatore" id="contatoreArchivio"></div>
+    <div id="listaArchivio"></div>
+  </section>
+
+  <!-- ============ AGGIUNGI ============ -->
+  <section id="vista-aggiungi" hidden>
+    <h2 class="titolo-sez">Nuova circolare</h2>
+    <p class="intro-sez">Incolla il testo che arriva dal commercialista: viene letto, spezzato in singole novità e valutato sul profilo della Saslong. Poi scegli quali voci mettere in archivio.</p>
+
+    <div class="modulo">
+      <h3>Leggi una circolare</h3>
+      <p class="aiuto">Carica il PDF che manda il commercialista, oppure incolla il testo di una mail o di una newsletter. Il documento viene letto, spezzato in singole novità e valutato sul profilo della Saslong.</p>
+      <div class="zona-pdf" id="zonaPdf">
+        <input type="file" id="filePdf" accept="application/pdf,.pdf" hidden>
+        <button class="bottone oro" id="btnScegliPdf">Carica un PDF</button>
+        <span id="statoPdf">oppure trascina qui il file</span>
+      </div>
+      <textarea class="incolla" id="testoCircolare" placeholder="Il testo del PDF compare qui. In alternativa incolla direttamente il testo della circolare…"></textarea>
+      <div class="azioni-riga">
+        <input type="text" id="fonteCircolare" placeholder="Fonte, es. Circolare mensile settembre 2026" style="flex:1;min-width:240px;border:1px solid var(--linea);padding:8px">
+        <button class="bottone oro" id="btnAnalizza">Analizza il testo</button>
+      </div>
+      <div class="esito" id="esitoAnalisi"></div>
+      <div id="anteprimaVoci"></div>
+    </div>
+
+    <div class="modulo">
+      <h3>Inserisci una voce a mano</h3>
+      <p class="aiuto">Per una scadenza tua: un termine dato dal commercialista al telefono, una delibera comunale, un rinnovo di autorizzazione.</p>
+      <div class="griglia">
+        <div class="larga"><label for="mTitolo">Titolo</label><input id="mTitolo" placeholder="Es. Rinnovo autorizzazione insegna"></div>
+        <div><label for="mRif">Riferimento normativo</label><input id="mRif" placeholder="Es. Art. 12, D.Lgs. 148/2026"></div>
+        <div><label for="mFonte">Fonte</label><input id="mFonte" placeholder="Es. Commercialista, mail del 3/9"></div>
+        <div><label for="mRilevanza">Rilevanza per la Saslong</label><select id="mRilevanza"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="bassa">Bassa</option><option value="nulla">Non applicabile</option></select></div>
+        <div><label for="mVerdetto">Che cosa facciamo</label><select id="mVerdetto"><option value="subito">Fare subito</option><option value="studio" selected>Chiedere allo studio</option><option value="preparare">Preparare in ufficio</option><option value="sapere">Solo da sapere</option><option value="ignorare">Non ci riguarda</option></select></div>
+        <div class="larga"><label for="mInPratica">In pratica, in una frase</label><input id="mInPratica" placeholder="Es. Mandiamo al consulente le targhe delle auto prima delle paghe"></div>
+        <div><label for="mEsempio">Esempio con i numeri (facoltativo)</label><input id="mEsempio" placeholder="Es. su 9.000 euro di spese tornano circa 1.500 euro"></div>
+        <div><label for="mChi">Chi se ne occupa</label><input id="mChi" placeholder="Ufficio, commercialista, consulente del lavoro"></div>
+        <div><label for="mCategorie">Argomenti (separati da virgola)</label><input id="mCategorie" placeholder="IVA, Immobili"></div>
+        <div class="larga"><label for="mSintesi">Che cosa dice</label><textarea id="mSintesi" rows="2"></textarea></div>
+        <div class="larga"><label for="mImpatto">Che cosa cambia per noi</label><textarea id="mImpatto" rows="2"></textarea></div>
+        <div class="larga"><label for="mOpportunita">Opportunità da sfruttare (facoltativo)</label><textarea id="mOpportunita" rows="2"></textarea></div>
+        <div class="larga"><label for="mAzione">Prossima mossa</label><textarea id="mAzione" rows="2"></textarea></div>
+        <div><label for="mData1">Scadenza</label><input type="date" id="mData1"></div>
+        <div><label for="mDesc1">Che cosa va fatto entro quella data</label><input id="mDesc1" placeholder="Es. invio istanza telematica"></div>
+      </div>
+      <div class="azioni-riga"><button class="bottone oro" id="btnSalvaManuale">Aggiungi all'archivio</button><span class="esito" id="esitoManuale"></span></div>
+    </div>
+  </section>
+
+  <!-- ============ IMPOSTAZIONI ============ -->
+  <section id="vista-impostazioni" hidden>
+    <h2 class="titolo-sez">Impostazioni</h2>
+    <div class="modulo">
+      <h3>Preavviso</h3>
+      <p class="aiuto">Quanti giorni prima di una scadenza vuoi vederla comparire tra le allerte.</p>
+      <label for="giorniPreavviso" style="font-size:14px;color:var(--grigio)">Giorni di preavviso</label><br>
+      <input type="number" id="giorniPreavviso" min="1" max="180" style="width:110px;border:1px solid var(--linea);padding:8px">
+      <button class="bottone piccolo" id="btnSalvaPreavviso">Salva</button>
+    </div>
+    <div class="modulo">
+      <h3>Servizio di lettura delle circolari</h3>
+      <p class="aiuto">Dentro Claude il collegamento è automatico e questi campi restano vuoti. Se la pagina è aperta come file o pubblicata su un sito, serve uno dei due: l'indirizzo di un proxy (consigliato, come per l'app Ordini) oppure una chiave API, che resta solo in questo browser.</p>
+      <div class="griglia">
+        <div><label for="lettProxy">Indirizzo del proxy</label><input id="lettProxy" placeholder="https://radar.xxxxx.workers.dev"></div>
+        <div><label for="lettChiave">Chiave API (in alternativa)</label><input id="lettChiave" type="password" placeholder="sk-ant-…" autocomplete="off"></div>
+      </div>
+      <div class="azioni-riga">
+        <button class="bottone piccolo" id="btnSalvaLettura">Salva</button>
+        <button class="bottone piccolo" id="btnProvaLettura">Prova il collegamento</button>
+        <span class="esito" id="esitoLettura"></span>
+      </div>
+    </div>
+    <div class="modulo">
+      <h3>Lettere al commercialista</h3>
+      <p class="aiuto">Intestazione e firma usate nelle domande già scritte. L'indirizzo e-mail dello studio serve per il pulsante "Prepara la mail".</p>
+      <div class="griglia">
+        <div><label for="lAzienda">Azienda</label><input id="lAzienda"></div>
+        <div><label for="lIndirizzo">Indirizzo</label><input id="lIndirizzo"></div>
+        <div><label for="lReferente">Chi firma (nome e ruolo)</label><input id="lReferente" placeholder="Es. Alex, reception e amministrazione"></div>
+        <div><label for="lEmail">E-mail dell'azienda</label><input id="lEmail"></div>
+        <div><label for="lTelefono">Telefono</label><input id="lTelefono"></div>
+        <div><label for="lStudio">Studio destinatario</label><input id="lStudio" placeholder="Es. Studio Rossi, dott. Mario Rossi"></div>
+        <div><label for="lEmailStudio">E-mail dello studio</label><input id="lEmailStudio" placeholder="studio@esempio.it"></div>
+      </div>
+      <div class="azioni-riga"><button class="bottone piccolo" id="btnSalvaLettera">Salva</button></div>
+    </div>
+    <div class="modulo">
+      <h3>Copia di sicurezza</h3>
+      <p class="aiuto">L'archivio vive in questa pagina. Esporta il file JSON ogni tanto: contiene voci, note e scadenze gestite, e si può reimportare qui o su un'altra postazione.</p>
+      <div class="azioni-riga">
+        <button class="bottone" id="btnEsporta">Esporta archivio</button>
+        <label class="bottone" style="display:inline-block">Importa archivio<input type="file" id="fileImporta" accept="application/json" hidden></label>
+        <button class="bottone" id="btnRipristina">Ripristina le voci di partenza</button>
+      </div>
+      <div class="esito" id="esitoImpostazioni"></div>
+    </div>
+    <div class="modulo">
+      <h3>Profilo usato per la valutazione</h3>
+      <p class="aiuto">È il profilo con cui vengono giudicate le novità in arrivo. Cambialo se cambia la situazione della società.</p>
+      <textarea class="incolla" id="profiloAzienda" style="min-height:420px;line-height:1.5"></textarea>
+      <div class="azioni-riga"><button class="bottone piccolo" id="btnSalvaProfilo">Salva profilo</button></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  Radar fiscale AlpStay · le valutazioni sono una prima selezione interna, la decisione finale resta del commercialista.
+</footer>
+
+<script>
+/* ============================================================
+   1. DATI DI PARTENZA — estratti dalla circolare di settembre 2026
+   ============================================================ */
+const PROFILO_VERSIONE = 2;
+const PROFILO_DEFAULT = `CHI SIAMO
+Saslong Srl - Smart Hotel Saslong, Via Rezia 308, Ortisei (BZ), Val Gardena, Alto Adige. Struttura del gruppo AlpStay. Albergo con self check-in tramite chiosco. Società a responsabilità limitata a ristretta base familiare, immobile strumentale di proprietà con ammortamenti rilevanti. Personale dipendente fisso più stagionale (CCNL Turismo), due stagioni (inverno e estate). IVA mensile, soggetto ISA. Acquisti anche da fornitori austriaci e tedeschi, trasferte e fiere all'estero. Possibili auto aziendali in uso promiscuo. Sponsorizzazioni di associazioni sportive locali. Sede in Provincia autonoma di Bolzano: valgono anche le norme provinciali (IRAP provinciale, imposta di soggiorno, contributi e bandi della Provincia).
+
+COME GIUDICARE UNA NOVITÀ
+Conta solo l'effetto pratico sui conti e sull'operatività dell'albergo: cassa, imposte, rischio in caso di verifica, adempimenti da fare in ufficio. Niente teoria. Per ogni novità dire in una frase che cosa facciamo, chi lo fa e con un esempio in euro calato su un albergo. Se c'è una scadenza entro 60 giorni il verdetto è "subito"; se serve una decisione o un calcolo dello studio è "studio"; se è lavoro d'ufficio senza fretta è "preparare"; se non c'è nulla da fare ma può servire in un controllo è "sapere"; se non ci riguarda è "ignorare".
+
+AREE DA TENERE D'OCCHIO, IN ORDINE DI PRIORITÀ
+1. Concordato preventivo biennale, ISA e compensazioni. Siamo sotto la lente dell'Agenzia: ogni modifica al CPB, alle soglie del visto di conformità per compensare o chiedere a rimborso l'IVA, ai punteggi di affidabilità e ai termini di accertamento ha priorità massima.
+2. Immobile e ammortamenti. Rivalutazione o riallineamento dei beni d'impresa, limiti alla deducibilità di ammortamenti e quota terreno (IRES e IRAP), assegnazione agevolata ai soci, IMU e rendite catastali, incentivi per riqualificazione energetica e digitale delle strutture ricettive (Transizione 5.0, crediti d'imposta per il turismo, bandi provinciali).
+3. Personale e costo del lavoro. Rinnovi del CCNL Turismo, sgravi e decontribuzione per assunzioni stagionali e giovani, welfare aziendale e fringe benefit (soglie di esenzione, auto in uso promiscuo, alloggio e vitto ai dipendenti), lavoro extra e chiamata, controlli ispettivi, Uniemens e comunicazioni obbligatorie.
+4. IVA e fatturazione. Detrazione e registrazione delle fatture a cavallo d'anno, note di credito, rimborso dell'IVA pagata in altri Stati UE (scadenza annuale 30 settembre), reverse charge su acquisti da fornitori esteri, fatturazione elettronica transfrontaliera (ViDA), corrispettivi telematici, aliquota IVA su alloggio, ristorazione e servizi accessori, imposta di bollo sulle fatture.
+5. Trasferte, rappresentanza e sponsorizzazioni. Deducibilità di trasferte e fiere all'estero, spese di rappresentanza, sponsorizzazioni alle associazioni sportive dilettantistiche: area facilmente contestabile, il Fisco tende a riqualificarle come rappresentanza; seguire sentenze di Cassazione sull'inerenza e i limiti di deducibilità.
+6. Ospiti e obblighi di settore. Imposta di soggiorno (norme provinciali e comunali), identificazione degli ospiti e comunicazione alloggiati con self check-in, codice identificativo nazionale (CIN), privacy e conservazione dei documenti, obblighi antincendio e sicurezza, classificazione alberghiera.
+7. Accertamento e difesa. Antieconomicità e prezzi fuori listino (gruppi, tour operator, bassa stagione), presunzioni sugli utili delle società a ristretta base, termini di accertamento, cassetto fiscale e atti notificati per via telematica, ravvedimento operoso.
+8. Società e governance. Delibere necessarie per operazioni straordinarie (affitto o cessione d'azienda, gestione affidata a terzi), rapporti con le altre società del gruppo AlpStay, distribuzione utili e tassazione dei dividendi dei soci.
+
+CHE COSA SCARTARE (verdetto "ignorare")
+Norme che riguardano solo: professionisti e lavoro autonomo, persone fisiche non imprenditori, autotrasporto, agricoltura, banche e assicurazioni, trust e successioni, partecipazioni in Paesi a fiscalità privilegiata, fondi pensione, enti sportivi e del terzo settore (salvo il riflesso sulle nostre sponsorizzazioni), grandi imprese e gruppi multinazionali, settori produttivi diversi dal turismo.`;
+
+const FONTE_G26 = "Circolare mensile per l'impresa, gennaio 2026";
+const VOCI_BASE = [
+{
+  id:"iva-estera-2025", titolo:"Rimborso dell'IVA pagata in altri Paesi UE nel 2025",
+  riferimento:"Art. 38-bis1, D.P.R. 633/1972 — Direttiva 2008/9/UE",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"alta", categorie:["IVA","Estero"],
+  sintesi:"L'IVA pagata a fornitori di altri Stati UE non si detrae in Italia ma si chiede a rimborso con istanza telematica (Entratel o Fisconline) inoltrata dall'Agenzia al Centro Operativo di Pescara. Soglia minima 50 euro per l'anno intero, 400 euro per periodi di almeno tre mesi. La stessa data serve anche per correggere istanze già inviate con errori.",
+  impatto:"La Saslong sostiene costi in Austria e Germania: fiere del turismo, carburante, pedaggi, noleggi, alberghi e ristorazione per trasferte, fornitori di attrezzatura. Su quelle fatture c'è IVA estera che oggi resta un costo.",
+  opportunita:"Recupero di cassa immediato su spese 2025 già sostenute. È l'unica finestra dell'anno: chi la salta perde l'IVA 2025 per sempre.",
+  azione:"Estrarre dalla contabilità 2025 tutte le fatture con IVA estera, sommarle per Stato, verificare la soglia dei 50 euro e passare l'elenco al commercialista per l'invio.",
+  stato:"da valutare",
+  scadenze:[{data:"2026-09-30", descrizione:"Invio istanza di rimborso IVA estera 2025 (termine perentorio)", tipo:"adempimento"}]
+},
+{
+  id:"assegnazione-agevolata", titolo:"Assegnazione agevolata di immobili ai soci e trasformazione in società semplice",
+  riferimento:"L. 199/2025 (Legge di Bilancio 2026), art. 1, commi 35-41",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"alta", categorie:["Immobili","Societario"],
+  sintesi:"Riaperta la possibilità di far uscire dalla società immobili non strumentali per destinazione e beni mobili registrati pagando un'imposta sostitutiva dell'8% (10,5% se la società risulta non operativa in almeno due degli ultimi tre esercizi) sulla differenza fra valore normale e costo fiscale. Registro dimezzato, ipotecaria e catastale a 200 euro fisse. Si può usare il valore catastale al posto di quello di mercato. Servono soci già iscritti al 30 settembre 2025.",
+  impatto:"Riguarda la Saslong solo se in bilancio ci sono immobili che non servono direttamente all'albergo: appartamenti locati, garage, terreni, unità tenute a reddito.",
+  opportunita:"Portare un immobile nella sfera privata dei soci a costo fiscale ridotto, con imposte d'atto quasi azzerate. Fuori da questa finestra la stessa operazione costa molto di più.",
+  azione:"Chiedere al commercialista, entro metà settembre, la lista dei cespiti non strumentali per destinazione e una simulazione del costo dell'operazione. Se non ce ne sono, chiudere la voce come non applicabile.",
+  stato:"da valutare",
+  scadenze:[
+    {data:"2026-09-30", descrizione:"Atto di assegnazione o trasformazione perfezionato + versamento del 60% dell'imposta sostitutiva", tipo:"adempimento"},
+    {data:"2026-11-30", descrizione:"Versamento del restante 40% dell'imposta sostitutiva (senza interessi)", tipo:"versamento"}
+  ]
+},
+{
+  id:"iva-detrazione-biennale", titolo:"La detrazione IVA torna a due anni e si sistemano le fatture a cavallo d'anno",
+  riferimento:"Art. 12, D.Lgs. 148/2026 (artt. 19 e 25, D.P.R. 633/1972)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"alta", categorie:["IVA","Adempimenti"],
+  sintesi:"Il diritto alla detrazione può essere esercitato fino alla dichiarazione del secondo anno successivo a quello in cui è sorto, e l'annotazione delle fatture di acquisto segue lo stesso termine più lungo. La fattura di dicembre ricevuta l'anno dopo, se registrata in un sezionale dedicato, può essere imputata all'anno in cui l'operazione è avvenuta. Si allungano di conseguenza anche i tempi per le note di credito.",
+  impatto:"In albergo le fatture di fine stagione e di dicembre arrivano spesso a gennaio o più tardi: finora quell'IVA rischiava di restare indietro. Ora il margine di recupero è di due anni.",
+  opportunita:"Ripescare l'IVA su acquisti 2024 e 2025 rimasti fuori per ricezione o registrazione tardiva.",
+  azione:"Concordare con lo studio una verifica delle fatture passive scartate per tardività negli ultimi due esercizi e impostare un sezionale per le fatture a cavallo d'anno.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"fringe-auto", titolo:"Auto aziendali in uso promiscuo: cambia il calcolo del valore in busta paga",
+  riferimento:"Art. 2, D.Lgs. 148/2026 (art. 51, comma 4, lett. a, TUIR)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Lavoro","Auto"],
+  sintesi:"Spariscono i requisiti di nuova immatricolazione e data del contratto: conta solo l'anzianità del veicolo. Restano le percentuali del 50%, ridotte al 10% per le elettriche e al 20% per le ibride plug-in, calcolate sul costo chilometrico ACI per 15.000 km. Dal 1° gennaio del sesto anno dalla prima immatricolazione il valore aumenta del 50%. Ulteriore 5% se ci sono optional non compresi nelle tabelle ACI e non pagati dal dipendente. Le somme trattenute al lavoratore si scomputano. Regole valide dal periodo d'imposta 2026, comprese le assegnazioni 2025 finora fuori dal transitorio.",
+  impatto:"Se ci sono auto assegnate a direzione, manutenzione o soci con uso anche privato, il valore imponibile del 2026 cambia e va sistemato nel conguaglio di fine anno.",
+  opportunita:"Un'auto vecchia oltre i cinque anni costa in busta paga il 50% in più: può convenire riassegnarla solo a uso aziendale o sostituirla. Una elettrica resta al 10%.",
+  azione:"Preparare l'elenco delle auto con targa e data di prima immatricolazione e mandarlo al consulente del lavoro prima delle paghe di novembre.",
+  stato:"da valutare",
+  scadenze:[
+    {data:"2026-10-31", descrizione:"Elenco auto e date di immatricolazione al consulente del lavoro", tipo:"attività interna"},
+    {data:"2026-12-31", descrizione:"Conguaglio fiscale di fine anno con i nuovi valori del fringe benefit", tipo:"adempimento"}
+  ]
+},
+{
+  id:"welfare-familiari", titolo:"Welfare al personale: benefit esenti anche per genitori e suoceri non conviventi",
+  riferimento:"Art. 1, D.Lgs. 148/2026 (art. 12, comma 4-ter, TUIR)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Lavoro","Welfare"],
+  sintesi:"Cade il requisito della convivenza o degli assegni alimentari per estendere i benefit non tassati ai familiari diversi da coniuge e figli. I rimborsi per l'assistenza ad anziani o non autosufficienti sono esenti anche se il genitore o il suocero non convive. La misura vale già dal periodo d'imposta 2025.",
+  impatto:"Riguarda i dipendenti fissi e chi torna ogni stagione: si può dare valore netto senza aumentare il costo del lordo.",
+  opportunita:"Strumento di attrattività per il personale in una valle dove trovare gente è il problema principale, e più efficiente di un aumento in busta paga.",
+  azione:"Valutare con il consulente del lavoro un piccolo piano welfare da presentare allo staff prima della stagione invernale.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"cpb-rinnovo", titolo:"Concordato preventivo biennale 2026-2027: premi per chi rinnova, in cambio di più tempo ai controlli",
+  riferimento:"Artt. 28 e 29, D.Lgs. 148/2026 (D.Lgs. 13/2024)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"alta", categorie:["CPB/ISA"],
+  sintesi:"Chi rinnova l'adesione per il biennio 2026-2027 ottiene compensazioni senza visto fino a 100.000 euro per l'IVA e 70.000 per le imposte dirette, rimborsi IVA senza visto o garanzia fino a 100.000 euro, nessun interesse sulle rate del biennio e niente maggiorazione del 10% (o 3% IRAP) sull'acconto storico. Si riapre inoltre il ravvedimento speciale sulle annualità 2020-2023, riservato a chi rinnova. In cambio i termini di accertamento si allungano: al 31 dicembre 2027 quelli in scadenza a fine 2026, al 31 dicembre 2029 per le annualità sanate. L'adesione priva dei requisiti (fra cui debiti fiscali definitivi pari o superiori a 5.000 euro) è priva di effetti fin dall'origine.",
+  impatto:"Se la Saslong è nel concordato come soggetto ISA, la scelta fra rinnovare e uscire va fatta a conti fatti, non per abitudine.",
+  opportunita:"Il pacchetto premiale vale soprattutto per chi compensa spesso crediti IVA. Il ravvedimento 2020-2023 chiude le annualità vecchie, ma allunga la finestra dei controlli.",
+  azione:"Chiedere al commercialista la proposta di concordato per il biennio 2026-2027, il conto costi-benefici del rinnovo e la data esatta del termine di adesione.",
+  stato:"da valutare",
+  scadenze:[
+    {data:"2026-09-30", descrizione:"Termine di adesione o rinnovo del CPB — data legata alla dichiarazione dei redditi, farsela confermare dallo studio", tipo:"opzione", daVerificare:true},
+    {data:"2027-03-15", descrizione:"Versamento in unica soluzione dell'imposta sostitutiva del ravvedimento speciale 2020-2023 (o prima delle dieci rate)", tipo:"versamento"}
+  ]
+},
+{
+  id:"scorporo-terreni-irap", titolo:"Quota terreno degli immobili: per la Cassazione è deducibile ai fini IRAP",
+  riferimento:"Cassazione n. 22822/2025 — art. 36, comma 7, D.L. 223/2006",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Immobili","IRAP"],
+  sintesi:"Le percentuali forfetarie che isolano il valore del terreno (20% del costo del fabbricato, 30% se industriale) rendono quella quota indeducibile ai fini IRES, ma secondo la Cassazione non valgono per l'IRAP: lì conta l'importo iscritto a conto economico. L'Agenzia delle Entrate sostiene invece la tesi opposta.",
+  impatto:"Un albergo di proprietà ha ammortamenti pesanti: la quota terreno esclusa ogni anno dalla base IRAP non è una cifra simbolica.",
+  opportunita:"Si può valutare un'istanza di rimborso IRAP per le annualità ancora aperte, sapendo che l'Agenzia la pensa diversamente e il recupero passa probabilmente da un contenzioso.",
+  azione:"Far quantificare al commercialista l'importo in gioco per gli ultimi esercizi, poi decidere se vale il rischio.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"imu-novita", titolo:"IMU: dichiarazione solo telematica, ravvedimento più ampio, sanzioni più leggere dal 2027",
+  riferimento:"D.Lgs. 147/2026, artt. 12, 26 e 32",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["IMU","Immobili"],
+  sintesi:"La dichiarazione IMU va presentata solo per via telematica entro il 30 giugno dell'anno successivo a quello in cui si verificano i presupposti: non si consegna più in cartaceo al Comune. Il ravvedimento sui tributi locali non è più bloccato da questionari, inviti o verbali, ma solo dalla notifica dell'atto impositivo. Dal 1° gennaio 2027 l'omessa dichiarazione scende al 100% del tributo e l'infedele al 40%. In caso di rendita catastale rettificata e impugnata, Comune e contribuente hanno cinque anni dal passaggio in giudicato per accertare o chiedere il rimborso.",
+  impatto:"Riguarda gli immobili della società e i loro classamenti. Se in passato è rimasta indietro una dichiarazione IMU, oggi c'è più spazio per sistemarla spontaneamente.",
+  opportunita:"Finestra più larga per il ravvedimento e possibilità di rimborso se una rendita contestata viene poi ridotta.",
+  azione:"Verificare con il commercialista che le dichiarazioni IMU degli ultimi anni siano state presentate e che le rendite dell'albergo siano allineate.",
+  stato:"da valutare",
+  scadenze:[
+    {data:"2027-06-30", descrizione:"Dichiarazione IMU telematica per i presupposti sorti nel 2026", tipo:"adempimento"}
+  ]
+},
+{
+  id:"antieconomicita", titolo:"Accertamenti per antieconomicità: lo scostamento dai prezzi di mercato da solo non basta",
+  riferimento:"Art. 24, D.Lgs. 148/2026 (art. 252-bis TU Accertamento)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Accertamento"],
+  sintesi:"L'Ufficio non può fondare una rettifica solo sul fatto che i corrispettivi si discostano dal valore di mercato: servono ulteriori elementi gravi, precisi e concordanti che dimostrino operazioni fittizie o evasione.",
+  impatto:"Utile come difesa: tariffe scontate a gruppi e tour operator, pacchetti last minute, forniture o locazioni fra società collegate non sono più contestabili solo perché basse.",
+  opportunita:"Tenere comunque a portata di mano la motivazione commerciale di ogni prezzo fuori listino (contratti allotment, riempimento bassa stagione).",
+  azione:"Nessuna azione immediata: archiviare come precedente da citare in caso di verifica.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"utili-ristretta-base", titolo:"Utili non contabilizzati: limiti alla presunzione di distribuzione ai soci",
+  riferimento:"Art. 23, D.Lgs. 148/2026 (art. 256-bis TU Accertamento)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Accertamento","Societario"],
+  sintesi:"Nelle società di capitali a ristretta base la presunzione che gli utili occulti siano stati distribuiti ai soci opera solo se l'accertamento si fonda su ricavi non contabilizzati o su costi inesistenti. Non si applica alle rettifiche di natura valutativa o interpretativa.",
+  impatto:"La Saslong è una società a base familiare: la novità riduce il rischio che una contestazione sulla società si ribalti automaticamente sui soci.",
+  opportunita:null,
+  azione:"Archiviare come precedente difensivo, da richiamare se arriva un questionario.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"componenti-pluriennali", titolo:"Ammortamenti e spese pluriennali: nuovo conteggio dei termini di accertamento",
+  riferimento:"Art. 22, D.Lgs. 148/2026 (art. 43, comma 1-bis, D.P.R. 600/1973)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"bassa", categorie:["Accertamento","Immobili"],
+  sintesi:"Il termine per contestare un componente negativo pluriennale decorre dalla dichiarazione in cui la singola quota è stata dedotta per la prima volta; una volta notificato l'accertamento su un'annualità, l'Ufficio può rettificare anche le quote degli anni precedenti e successivi ancora aperti. Si applica ai beni e servizi acquistati dal periodo d'imposta in corso al 31 dicembre 2027, escluse perdite d'impresa e detrazioni pluriennali.",
+  impatto:"Riguarda gli ammortamenti dell'albergo e le manutenzioni straordinarie capitalizzate: la documentazione di acquisto va conservata più a lungo, per tutto il piano di ammortamento.",
+  opportunita:null,
+  azione:"Tenere insieme, per ogni cespite rilevante, fattura, contratto e perizia fino a fine ammortamento.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"cessione-azienda-delibera", titolo:"Cedere l'unica azienda senza delibera dei soci: atto inefficace",
+  riferimento:"Cassazione, ordinanza n. 24244/2026 (art. 2479 c.c.)",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Societario"],
+  sintesi:"L'amministratore di una Srl che cede l'unica azienda operativa senza decisione dei soci compie una modifica sostanziale dell'oggetto sociale: senza delibera assembleare è privo del potere di rappresentare la società e l'atto è inefficace, anche verso il terzo acquirente successivo.",
+  impatto:"Vale per qualsiasi operazione che sposti la gestione dell'albergo: affitto d'azienda, cessione di ramo, affidamento della gestione a un terzo.",
+  opportunita:null,
+  azione:"Qualsiasi ipotesi di affitto o cessione della gestione va portata in assemblea e verbalizzata prima della firma.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"cassetto-fiscale", titolo:"Nel cassetto fiscale arrivano anche avvisi di liquidazione e accertamenti parziali",
+  riferimento:"Agenzia delle entrate, avviso 28/7/2026 — provvedimento 210791/2026",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"media", categorie:["Adempimenti"],
+  sintesi:"Nella sezione L'Agenzia scrive del cassetto fiscale compaiono ora anche gli avvisi di liquidazione dell'imposta di registro, le imposte sostitutive sui finanziamenti, gli accertamenti parziali automatizzati e i relativi provvedimenti di autotutela.",
+  impatto:"Documenti con termini stretti possono arrivare lì senza che nessuno se ne accorga in ufficio.",
+  opportunita:"Un controllo periodico costa dieci minuti ed evita di scoprire un atto quando è già tardi per il ravvedimento.",
+  azione:"Fissare un controllo mensile del cassetto fiscale, o chiedere allo studio la conferma scritta che lo presidia loro.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"adempimenti-set-ott-2026", titolo:"Adempimenti ricorrenti dal 16 settembre al 15 ottobre 2026",
+  riferimento:"Scadenzario mensile",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"alta", categorie:["Adempimenti","IVA","Lavoro"],
+  sintesi:"Le scadenze ordinarie del periodo: liquidazione IVA e contributi di agosto, Intrastat, LIPE del secondo trimestre, imposta di bollo sulle fatture elettroniche, Uniemens, registrazioni e fatturazione differita di settembre.",
+  impatto:"Sono gli adempimenti che passano dallo studio ma che l'ufficio deve alimentare in tempo con registri, presenze e corrispettivi.",
+  opportunita:null,
+  azione:"Verificare che la contabilità di agosto e settembre sia consegnata allo studio con qualche giorno di anticipo su ogni data.",
+  stato:"in corso",
+  scadenze:[
+    {data:"2026-09-16", descrizione:"IVA di agosto, contributi INPS, ritenute alla fonte e accise", tipo:"versamento"},
+    {data:"2026-09-25", descrizione:"Elenchi Intrastat mensili", tipo:"adempimento"},
+    {data:"2026-09-30", descrizione:"LIPE del secondo trimestre 2026 e Uniemens di agosto", tipo:"adempimento"},
+    {data:"2026-09-30", descrizione:"Imposta di bollo sulle fatture elettroniche del primo e secondo trimestre, se supera 5.000 euro", tipo:"versamento"},
+    {data:"2026-10-15", descrizione:"Registrazioni contabili e fatturazione differita di settembre", tipo:"adempimento"}
+  ]
+},
+{
+  id:"sport-dilettantistico", titolo:"Chiarimenti fiscali sullo sport dilettantistico",
+  riferimento:"Agenzia delle entrate, circolare 7/E del 7 agosto 2026",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"bassa", categorie:["Non applicabile","Sport"],
+  sintesi:"Chiarimenti su decommercializzazione per le SSD a lucratività attenuata, cumulo fra rimborsi ai volontari e compensi sportivi, soglia di esenzione di 15.000 euro estesa al lavoro sportivo subordinato, esenzione IRAP fino a 85.000 euro anche per i collaboratori amministrativi, IVA ordinaria sulla cessione del cartellino.",
+  impatto:"Non tocca la gestione alberghiera. Utile solo lato sponsorizzazioni: cambia il trattamento in capo all'associazione sportiva che riceve il contributo, non la deducibilità per noi.",
+  opportunita:null,
+  azione:"Nessuna. Tenere agli atti se si sponsorizzano sci club o associazioni della valle.",
+  stato:"non applicabile",
+  scadenze:[]
+},
+{
+  id:"credito-autotrasporto", titolo:"Credito d'imposta per le imprese di autotrasporto",
+  riferimento:"D.L. 139/2026 e D.L. 153/2026",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"nulla", categorie:["Non applicabile"],
+  sintesi:"Prorogato il credito d'imposta straordinario sul caro carburante per le imprese di autotrasporto, ad agosto e nei primi giorni di settembre 2026.",
+  impatto:"Riservato alle imprese di autotrasporto conto terzi: la Saslong non rientra.",
+  opportunita:null,
+  azione:"Nessuna.",
+  stato:"non applicabile",
+  scadenze:[]
+},
+{
+  id:"partecipazioni-black-list", titolo:"Rivalutazione al 36% delle partecipazioni in Stati a fiscalità privilegiata e trust",
+  riferimento:"Artt. 13, 26 e 27, D.Lgs. 148/2026",
+  fonte:"Circolare mensile per l'impresa, settembre 2026", dataFonte:"2026-09-01",
+  rilevanza:"nulla", categorie:["Non applicabile"],
+  sintesi:"Imposta sostitutiva al 36% e nessuna rateizzazione per rivalutare partecipazioni non quotate in Stati black list; estensione della tassazione anticipata del trust alle imposte ipotecarie e catastali; ritenuta sui dividendi ai fondi pensione UE innalzata dall'11% al 20%.",
+  impatto:"Nessuna partecipazione estera né trust in gioco.",
+  opportunita:null,
+  azione:"Nessuna.",
+  stato:"non applicabile",
+  scadenze:[]
+},
+
+/* ---------- Circolare di gennaio 2026 ---------- */
+{
+  id:"g26-rimborso-iva-annuale", titolo:"Rimborso del credito IVA annuale: l'albergo rientra nel caso dell'aliquota media",
+  riferimento:"Art. 30 e 38-bis, D.P.R. 633/1972 — provvedimento AdE 176203/2025",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"alta", categorie:["IVA","Cassa"],
+  sintesi:"Il credito IVA che esce dalla dichiarazione annuale si può chiedere a rimborso fra il 1° febbraio e il 30 aprile. Fino a 30.000 euro senza garanzia né visto; oltre serve il visto di conformità più un'autocertificazione su patrimonio, continuità e contributi. Con il regime premiale ISA (punteggio 9, o 8,5 di media) l'esonero sale a 70.000 euro, e vale anche per chi è nel concordato. Una delle condizioni che danno diritto al rimborso è l'aliquota media sugli acquisti superiore di almeno il 10% a quella sulle vendite.",
+  impatto:"Un albergo vende al 10% e compra quasi tutto al 22%: è il caso da manuale dell'aliquota media. Se la Saslong chiude l'anno a credito IVA, quel credito può tornare in cassa invece di restare parcheggiato in compensazione.",
+  opportunita:"Trasformare il credito IVA in liquidità: rimborso senza garanzia fino a 30.000 euro, o fino a 70.000 con il punteggio ISA. Le società di comodo sono escluse.",
+  azione:"Chiedere allo studio, prima della dichiarazione IVA di primavera, quanto credito c'è e se conviene chiederlo a rimborso o tenerlo in compensazione.",
+  stato:"da valutare",
+  scadenze:[{data:"2027-04-30", descrizione:"Dichiarazione IVA annuale per il 2026 con eventuale richiesta di rimborso del credito", tipo:"adempimento"}]
+},
+{
+  id:"g26-compensazioni", titolo:"Compensazioni dei crediti fiscali: soglie, visto e blocco per chi ha cartelle",
+  riferimento:"Art. 17, D.Lgs. 241/1997 — art. 31, D.L. 78/2010 — Legge di Bilancio 2026",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["IVA","Adempimenti","Cassa"],
+  sintesi:"I primi 5.000 euro di credito IVA annuale si compensano liberamente dal 1° gennaio; oltre serve la dichiarazione annuale con visto e si parte dal decimo giorno dopo l'invio. Stesse regole per i crediti da imposte dirette e IRAP. Tetto annuo a 2 milioni. Con cartelle scadute sopra 1.500 euro la compensazione è bloccata finché non si paga; dalla Legge di Bilancio 2026 sopra 50.000 euro di ruoli scatta il divieto assoluto.",
+  impatto:"Se la Saslong compensa il credito IVA con contributi e ritenute, il calendario dell'F24 dipende da quando lo studio invia la dichiarazione. Una cartella dimenticata blocca tutto.",
+  opportunita:"Inviare presto la dichiarazione IVA sblocca prima il credito sopra i 5.000 euro; l'esonero dal visto fino a 70.000 euro per ISA premiale o concordato evita un costo.",
+  azione:"Controllare a inizio anno nel cassetto fiscale che non ci siano ruoli scaduti e concordare con lo studio la data di invio della dichiarazione IVA.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-trasferte-tracciabilita", titolo:"Trasferte e rappresentanza: senza pagamento tracciato niente deduzione",
+  riferimento:"Agenzia delle Entrate, circolare 15/E del 22 dicembre 2025 — D.L. 84/2025",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"alta", categorie:["Lavoro","Trasferte","Accertamento"],
+  sintesi:"Dal 2025 vitto, alloggio, taxi e NCC in trasferta vanno pagati con mezzi tracciati (carta, bonifico, app) perché il rimborso resti esente per il dipendente e deducibile per l'azienda. Fuori dall'obbligo: treni, aerei, autobus, indennità chilometrica. Pedaggi e parcheggi documentati sono esenti come spese di viaggio. Nel Comune anche il rimborso ACI per l'auto propria non è più tassato. Le trasferte all'estero sono escluse dall'obbligo. Le spese di rappresentanza invece devono essere tracciate sempre, Italia ed estero. Pubblicità e sponsorizzazioni non sono rappresentanza: nessun vincolo.",
+  impatto:"Riguarda fiere, corsi, viaggi di direzione e staff, omaggi ai clienti. Uno scontrino pagato in contanti a un ristorante in Italia diventa costo indeducibile e reddito per chi lo ha anticipato.",
+  opportunita:"La sponsorizzazione allo sci club resta deducibile senza vincolo di tracciabilità, purché sia pubblicità vera e non ospitalità mascherata.",
+  azione:"Dare a chi va in trasferta una carta aziendale e una regola scritta: niente contanti per vitto, alloggio e taxi. Rivedere le note spese 2025 e 2026 già registrate.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-tabelle-aci-2026", titolo:"Tabelle ACI 2026 per il calcolo del fringe benefit auto",
+  riferimento:"S.O. n. 40 alla G.U. del 23 dicembre 2025 — art. 51, comma 4, lett. a, TUIR",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["Lavoro","Auto"],
+  sintesi:"Pubblicate le tabelle ACI valide per il 2026: il benefit è una percentuale (50%, 20% plug-in, 10% elettriche) del costo ACI su 15.000 km, riproporzionato se l'assegnazione dura meno di un anno. Se l'azienda addebita al dipendente almeno l'importo del benefit, in busta paga non va nulla e l'IVA sull'auto diventa interamente detraibile. I costi delle auto in uso promiscuo sono deducibili al 70% senza tetto sul costo del veicolo. Le regole di accesso sono poi state riscritte ad agosto dal D.Lgs. 148/2026.",
+  impatto:"Serve per il conguaglio 2026 e per il calcolo mensile del benefit; da leggere insieme alla scheda sulle nuove regole di agosto.",
+  opportunita:"Far pagare al dipendente l'uso privato con fattura: sparisce il benefit e l'IVA dell'auto si detrae al 100% invece che al 40%.",
+  azione:"Passare al consulente del lavoro i valori ACI 2026 delle auto assegnate e valutare l'addebito dell'uso privato.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-conto-termico", titolo:"Conto Termico 3.0: incentivo del GSE per efficienza energetica e rinnovabili",
+  riferimento:"D.M. 7 agosto 2025 — G.U. n. 224 del 26 settembre 2025 — regole operative dal 19 dicembre 2025",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["Immobili","Incentivi","Energia"],
+  sintesi:"Dal 19 dicembre 2025 sono operative le regole del Conto Termico 3.0, l'incentivo statale erogato dal GSE per interventi di efficienza energetica sugli edifici esistenti e per la produzione di calore da fonti rinnovabili e sistemi ad alta efficienza.",
+  impatto:"Un albergo consuma soprattutto calore: caldaia, acqua calda, riscaldamento. Se la Saslong ha in programma pompa di calore, solare termico, isolamento o sostituzione generatore, questo incentivo va valutato prima di ordinare i lavori.",
+  opportunita:"Contributo diretto dal GSE, cumulabile in certi casi con altre misure, sugli interventi sull'impianto termico dell'albergo.",
+  azione:"Elencare gli interventi energetici previsti nei prossimi due anni e chiedere allo studio o a un tecnico se e quanto rientrano nel Conto Termico 3.0.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-bando-isi-inail", titolo:"Bando ISI INAIL 2025: fondo perduto per sicurezza e innovazione",
+  riferimento:"Bando ISI INAIL — G.U. n. 293 del 18 dicembre 2025",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["Incentivi","Sicurezza"],
+  sintesi:"Il nuovo bando INAIL mette 600 milioni di euro a fondo perduto per investimenti in sicurezza e innovazione, con modifiche pensate per le micro e piccole imprese che investono in sostenibilità e riduzione dei rischi.",
+  impatto:"Interventi su cucina, lavanderia, magazzino, movimentazione, rischio caduta e attrezzature possono essere finanziati in parte a fondo perduto.",
+  opportunita:"Contributo a fondo perduto su investimenti che spesso l'albergo deve fare comunque per la sicurezza dello staff.",
+  azione:"Chiedere allo studio o al consulente sicurezza le finestre di domanda del bando e se un investimento in programma può essere presentato.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-perdite-contributi-covid", titolo:"Contributi Covid e perdite fiscali: i contributi non riducono le perdite riportabili",
+  riferimento:"Atto di indirizzo MEF del 22 dicembre 2025 — art. 84 TUIR",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["Imposte dirette","Accertamento"],
+  sintesi:"Il MEF chiarisce che i contributi e crediti d'imposta Covid, definiti per legge come proventi che non concorrono al reddito, non sono proventi esenti: quindi non abbattono le perdite fiscali riportabili e non rendono indeducibili i costi collegati. Lo stesso vale per tutte le agevolazioni scritte con la stessa formula.",
+  impatto:"Gli alberghi hanno ricevuto contributi a fondo perduto nel 2020-2021 e spesso hanno chiuso quegli anni in perdita. Se in dichiarazione la perdita è stata ridotta dei contributi, oggi c'è una perdita in più da usare.",
+  opportunita:"Recuperare perdite 2020-2021 ridotte per prudenza e usarle contro gli utili degli anni successivi, con dichiarazione integrativa.",
+  azione:"Chiedere allo studio se le perdite fiscali 2020-2021 della Saslong sono state ridotte dei contributi Covid e se conviene rettificarle.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-stampa-registri", titolo:"Stampa e conservazione dei registri contabili: termini e bollo",
+  riferimento:"Art. 7, commi 4-ter e 4-quater, D.L. 357/1994 — D.L. 73/2022",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["Adempimenti","Contabilità"],
+  sintesi:"I registri tenuti con il gestionale sono regolari anche senza stampa, purché aggiornati e stampabili su richiesta dei verificatori. Chi sceglie la conservazione cartacea deve avere i file pronti con marca temporale entro tre mesi dal termine della dichiarazione dei redditi. Il registro dei beni ammortizzabili va aggiornato entro il termine della dichiarazione. Bollo per le società di capitali: 16 euro ogni 100 pagine sui libri cartacei, 16 euro ogni 2.500 registrazioni sui libri digitali, da versare con F24 codice 2501 entro 120 giorni dalla chiusura dell'esercizio.",
+  impatto:"Libro giornale, inventari e registro cespiti della Saslong: di solito li tiene lo studio, ma il bollo e la marca temporale sono adempimenti con data e sanzione.",
+  opportunita:null,
+  azione:"Farsi confermare dallo studio chi conserva i libri, se in digitale o in cartaceo, e che bollo e marca temporale siano assolti nei termini.",
+  stato:"da valutare",
+  scadenze:[
+    {data:"2027-01-31", descrizione:"Registri contabili 2025: file pronti con marca temporale e registro cespiti aggiornato (tre mesi dopo la dichiarazione dei redditi)", tipo:"adempimento"},
+    {data:"2027-04-30", descrizione:"Imposta di bollo sui registri digitali 2026 (F24, codice 2501)", tipo:"versamento"}
+  ]
+},
+{
+  id:"g26-tasso-legale", titolo:"Tasso di interesse legale all'1,6% dal 1° gennaio 2026",
+  riferimento:"D.M. 10 dicembre 2025 — G.U. n. 289 del 13 dicembre 2025",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"bassa", categorie:["Adempimenti","Ravvedimento"],
+  sintesi:"Il saggio legale scende dal 2% all'1,6% dal 2026. Conta per gli interessi del ravvedimento operoso, che maturano giorno per giorno con il tasso vigente in ciascun periodo, e per le sanzioni civili INPS ridotte al tasso legale nei casi ammessi. Non cambia il 3% delle rate della rivalutazione di partecipazioni e terreni.",
+  impatto:"Se la Saslong deve ravvedere un versamento in ritardo, gli interessi costano meno; il grosso resta la sanzione ridotta.",
+  opportunita:null,
+  azione:"Nessuna: lo studio applica il tasso nei conteggi di ravvedimento.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-iva-per-cassa", titolo:"Regime dell'IVA per cassa: come funziona e a chi conviene",
+  riferimento:"Art. 32-bis, D.L. 83/2012 — circolari 44/E/2012 e 1/E/2013",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"bassa", categorie:["IVA"],
+  sintesi:"Chi ha volume d'affari fino a 2 milioni può versare l'IVA sulle vendite a soggetti IVA solo all'incasso, ma allo stesso modo detrae l'IVA sugli acquisti solo al pagamento. Vincolo di tre anni, dicitura in fattura, esclusi i privati, il reverse charge e gli acquisti intracomunitari. Dopo un anno l'IVA diventa comunque esigibile.",
+  impatto:"L'albergo incassa dai privati al momento del soggiorno e i tour operator pagano in genere a breve: il differimento vale poco e il rovescio della medaglia, detrarre solo dopo aver pagato i fornitori, pesa.",
+  opportunita:null,
+  azione:"Nessuna, salvo che lo studio veda molti crediti verso agenzie con incassi lunghi.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-verifiche-inizio-anno", titolo:"Verifiche di inizio anno: regimi contabili, liquidazioni IVA e pro rata",
+  riferimento:"Art. 18, D.P.R. 600/1973 — art. 19, comma 5, D.P.R. 633/1972",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"bassa", categorie:["Adempimenti","IVA"],
+  sintesi:"A gennaio vanno controllati i limiti per la contabilità semplificata e per le liquidazioni IVA trimestrali (500.000 euro servizi, 800.000 altre attività, con maggiorazione dell'1% sui versamenti trimestrali) e va ricalcolato il pro rata definitivo dell'anno precedente per chi ha operazioni esenti.",
+  impatto:"La Saslong è una Srl in contabilità ordinaria e IVA mensile: i limiti non la toccano. Il pro rata riguarderebbe solo operazioni esenti abituali, che un albergo di norma non ha.",
+  opportunita:null,
+  azione:"Nessuna.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-codici-tributo-avvisi", titolo:"Avvisi bonari: codici tributo per pagare in parte e per il ravvedimento CPB",
+  riferimento:"Agenzia delle Entrate, risoluzioni 70/E/2025 e 72/E/2025",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"bassa", categorie:["Adempimenti","CPB/ISA"],
+  sintesi:"Nuovi codici tributo per versare solo una parte di un avviso bonario, limitati a fattispecie specifiche fra cui l'imposta sostitutiva dei soggetti ISA nel concordato; resta la rateizzazione. Con la risoluzione 72/E i codici per chi ha aderito al CPB 2025-2026 e ravvede gli anni precedenti.",
+  impatto:"Serve solo se arriva un avviso bonario legato al concordato o al ravvedimento speciale.",
+  opportunita:null,
+  azione:"Nessuna: da richiamare se arriva un avviso.",
+  stato:"da valutare",
+  scadenze:[]
+},
+{
+  id:"g26-adempimenti-gen-feb-2026", titolo:"Adempimenti ricorrenti dal 16 gennaio al 15 febbraio 2026",
+  riferimento:"Scadenzario mensile",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"media", categorie:["Adempimenti","IVA","Lavoro"],
+  sintesi:"Le scadenze ordinarie del periodo: IVA, contributi e ritenute di dicembre, Intrastat, imposta di bollo virtuale, Uniemens, registrazioni e fatturazione differita di gennaio.",
+  impatto:"Adempimenti già passati: archiviati per memoria del ciclo annuale.",
+  opportunita:null,
+  azione:"Nessuna: le stesse date si ripetono a gennaio 2027.",
+  stato:"chiusa",
+  scadenze:[
+    {data:"2026-01-16", descrizione:"IVA di dicembre, contributi INPS, ritenute alla fonte e accise", tipo:"versamento"},
+    {data:"2026-01-26", descrizione:"Elenchi Intrastat mensili e trimestrali", tipo:"adempimento"},
+    {data:"2026-02-02", descrizione:"Uniemens di dicembre e dichiarazione bollo virtuale 2025", tipo:"adempimento"},
+    {data:"2026-02-15", descrizione:"Registrazioni contabili e fatturazione differita di gennaio", tipo:"adempimento"}
+  ]
+},
+{
+  id:"g26-non-applicabili", titolo:"Gennaio 2026: novità che non riguardano la Saslong",
+  riferimento:"Enasarco 2026; IVA committente trasporto e logistica (circ. 14/E/2025); regime franchigia transfrontaliero (circ. 13/E/2025); STP; ONLUS 5 per mille; confisca doganale; integrazione CUP in fattura",
+  fonte:FONTE_G26, dataFonte:"2026-01-01",
+  rilevanza:"nulla", categorie:["Non applicabile"],
+  sintesi:"Contributi Enasarco per agenti di commercio; opzione per il versamento dell'IVA da parte del committente nei servizi di trasporto e logistica (codici ATECO sezione H); regime IVA di franchigia per piccole imprese che vendono in altri Stati UE (volume d'affari fino a 100.000 euro); società tra professionisti; elenco ONLUS per il 5 per mille; confisca doganale; correzione del CUP sulle fatture per incentivi pubblici.",
+  impatto:"Nessuno: la Saslong non ha agenti, non è impresa di logistica, supera le soglie della franchigia e non è un ente del terzo settore. Il CUP servirebbe solo se un giorno ricevesse un incentivo pubblico con obbligo di indicarlo in fattura.",
+  opportunita:null,
+  azione:"Nessuna.",
+  stato:"non applicabile",
+  scadenze:[]
+}
+];
+
+/* Proposta operativa: una frase sola, un esempio con i numeri, chi la esegue.
+   Gli importi sono ipotesi di scuola, servono a capire l'ordine di grandezza. */
+const MOSSE = {
+"iva-estera-2025":{ verdetto:"subito", chi:"Ufficio, poi commercialista",
+  inPratica:"Tirare fuori le fatture austriache e tedesche del 2025 e chiedere indietro l'IVA prima del 30 settembre.",
+  esempio:"Su 9.000 euro di spese in Austria con IVA al 20% tornano circa 1.500 euro. Serve almeno 50 euro di IVA nell'anno, sotto quella soglia non si presenta."},
+"assegnazione-agevolata":{ verdetto:"studio", chi:"Direzione e soci, con il commercialista",
+  inPratica:"Se in società c'è un immobile che non serve all'albergo, questo è il mese giusto per farlo uscire.",
+  esempio:"Appartamento con valore catastale 200.000 e costo fiscale 140.000: sostitutiva dell'8% su 60.000 = 4.800 euro, registro dimezzato, ipotecaria e catastale 200 euro l'una. Dal 1° ottobre la stessa uscita torna a tassazione piena."},
+"iva-detrazione-biennale":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"Aprire un sezionale per le fatture di dicembre che arrivano l'anno dopo: l'IVA non si perde più.",
+  esempio:"Fattura di fine stagione da 12.000 euro più 2.640 di IVA, datata dicembre e arrivata a febbraio: prima quell'IVA rischiava di restare fuori, ora si recupera fino alla dichiarazione del secondo anno successivo."},
+"fringe-auto":{ verdetto:"preparare", chi:"Ufficio, poi consulente del lavoro",
+  inPratica:"Mandare al consulente targhe e date di prima immatricolazione prima delle paghe di novembre.",
+  esempio:"Auto del 2020 con costo ACI 6.000 euro per 15.000 km: il valore in busta paga passa da 3.000 a 4.500 euro l'anno dal sesto anno. Una elettrica di pari costo resta a 600."},
+"welfare-familiari":{ verdetto:"studio", chi:"Consulente del lavoro",
+  inPratica:"Chiedere se conviene rimborsare al personale l'assistenza ai genitori, ora esente anche senza convivenza.",
+  esempio:"300 euro di rimborso arrivano netti al dipendente; gli stessi 300 euro in busta paga ne lasciano in tasca poco più della metà e costano di più all'azienda."},
+"cpb-rinnovo":{ verdetto:"studio", chi:"Commercialista",
+  inPratica:"Farsi mettere per iscritto il conto del rinnovo: quanto si risparmia e quanti anni di controllo in più si accettano.",
+  esempio:"Con il rinnovo si compensano fino a 100.000 euro di credito IVA senza visto di conformità; in cambio le annualità in scadenza a fine 2026 restano accertabili per tutto il 2027."},
+"scorporo-terreni-irap":{ verdetto:"studio", chi:"Commercialista",
+  inPratica:"Chiedere quanto vale la quota terreno oggi esclusa dall'IRAP e se conviene chiederla a rimborso.",
+  esempio:"Albergo iscritto a 2.000.000 euro: quota terreno forfetaria del 20% = 400.000. L'ammortamento del 3% su quella parte fa 12.000 euro l'anno non dedotti, cioè circa 470 euro di IRAP l'anno."},
+"imu-novita":{ verdetto:"preparare", chi:"Ufficio con il commercialista",
+  inPratica:"Controllare che le dichiarazioni IMU degli ultimi anni siano state presentate: adesso c'è più spazio per rimediare.",
+  esempio:"Se il Comune ha già mandato un questionario, prima il ravvedimento era bloccato e si andava all'accertamento; ora si può ancora sanare spontaneamente fino alla notifica dell'atto."},
+"antieconomicita":{ verdetto:"sapere", chi:"Ufficio, archivio contratti",
+  inPratica:"Tenere nel fascicolo il contratto dietro ogni prezzo fuori listino: da solo lo sconto non è più contestabile.",
+  esempio:"Camera a 60 euro a un tour operator quando il listino è 130: serve l'allotment firmato, ma la differenza di prezzo da sola non regge un accertamento."},
+"utili-ristretta-base":{ verdetto:"sapere", chi:"Commercialista",
+  inPratica:"Una ripresa fiscale sulla società non diventa più in automatico reddito tassato in capo ai soci.",
+  esempio:"Costo di 20.000 euro ritenuto non inerente e ripreso a tassazione: non si presume più distribuito ai soci, perché non è né ricavo in nero né fattura falsa."},
+"componenti-pluriennali":{ verdetto:"preparare", chi:"Ufficio, archivio cespiti",
+  inPratica:"Conservare fatture e contratti dei lavori per tutto il piano di ammortamento, non solo cinque anni.",
+  esempio:"Rifacimento camere da 300.000 euro ammortizzato al 3%: la documentazione va tenuta finché si deduce l'ultima quota."},
+"cessione-azienda-delibera":{ verdetto:"sapere", chi:"Direzione e soci",
+  inPratica:"Affitto o cessione della gestione dell'albergo: prima il verbale dei soci, poi la firma.",
+  esempio:"Un contratto di affitto d'azienda firmato dal solo amministratore, senza assemblea, sarebbe inefficace anche verso chi compra dopo."},
+"cassetto-fiscale":{ verdetto:"preparare", chi:"Ufficio",
+  inPratica:"Mettere in agenda dieci minuti il primo lunedì del mese per aprire il cassetto fiscale.",
+  esempio:"Un avviso di liquidazione lasciato lì oltre i termini diventa cartella con sanzione piena, mentre pagato nei termini la sanzione resta ridotta."},
+"adempimenti-set-ott-2026":{ verdetto:"preparare", chi:"Ufficio",
+  inPratica:"Consegnare allo studio la contabilità con tre giorni di anticipo su ogni data dello scadenzario.",
+  esempio:"Corrispettivi, presenze e fatture di agosto allo studio entro il 12 settembre: il 16 partono IVA, contributi e ritenute."},
+"sport-dilettantistico":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Non tocca l'albergo: riguarda le associazioni sportive, non chi le sponsorizza.",
+  esempio:"La sponsorizzazione allo sci club resta deducibile per noi come prima; cambia il trattamento in capo all'associazione che la incassa."},
+"credito-autotrasporto":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Riservato alle imprese di autotrasporto conto terzi: non rientriamo.",
+  esempio:"Il gasolio dei nostri mezzi resta un costo normale, senza credito d'imposta."},
+"g26-rimborso-iva-annuale":{ verdetto:"studio", chi:"Commercialista",
+  inPratica:"Chiedere allo studio se il credito IVA di fine anno può tornare in cassa come rimborso invece di restare in compensazione.",
+  esempio:"Vendite a 1.000.000 euro con IVA al 10%, acquisti a 500.000 con IVA al 22%: la differenza di aliquota supera il 10% e apre la strada al rimborso. Fino a 30.000 euro senza garanzia, fino a 70.000 con punteggio ISA alto."},
+"g26-compensazioni":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"A gennaio controllare che non ci siano cartelle scadute e fissare con lo studio la data di invio della dichiarazione IVA.",
+  esempio:"Credito IVA 2026 di 18.000 euro: 5.000 si usano già a gennaio 2027, gli altri 13.000 dal decimo giorno dopo l'invio della dichiarazione. Una cartella da 2.000 euro non pagata blocca tutto."},
+"g26-trasferte-tracciabilita":{ verdetto:"preparare", chi:"Ufficio e direzione",
+  inPratica:"Carta aziendale a chi va in trasferta e regola scritta: niente contanti per ristoranti, alberghi, taxi in Italia.",
+  esempio:"Fiera a Milano: 380 euro di cena e albergo pagati in contanti sono indeducibili e vanno tassati a chi li ha anticipati; pagati con carta restano esenti e deducibili. Alla fiera di Monaco l'obbligo non c'è."},
+"g26-tabelle-aci-2026":{ verdetto:"preparare", chi:"Consulente del lavoro",
+  inPratica:"Usare i valori ACI 2026 per il benefit delle auto assegnate e valutare l'addebito dell'uso privato al dipendente.",
+  esempio:"Costo ACI 0,54 euro/km su 15.000 km = 8.100 euro; benefit 50% = 4.050 euro l'anno. Se il dipendente paga 4.050 euro con fattura, in busta paga non va nulla e l'IVA dell'auto si detrae per intero."},
+"g26-conto-termico":{ verdetto:"studio", chi:"Direzione con studio e tecnico",
+  inPratica:"Prima di ordinare pompa di calore, solare termico o caldaia nuova, verificare quanto copre il Conto Termico 3.0.",
+  esempio:"Sostituzione della caldaia con pompa di calore da 60.000 euro: il GSE può coprire una quota rilevante della spesa con contributo diretto, a patto di presentare la domanda con le regole del bando."},
+"g26-bando-isi-inail":{ verdetto:"studio", chi:"Direzione con consulente sicurezza",
+  inPratica:"Chiedere le finestre di domanda del bando ISI e se un investimento in sicurezza già in programma può essere presentato.",
+  esempio:"Nuova lavastoviglie industriale, piattaforma per la manutenzione o sistema anticaduta: il bando copre a fondo perduto una quota importante, per investimenti fatti dopo la domanda, non prima."},
+"g26-perdite-contributi-covid":{ verdetto:"studio", chi:"Commercialista",
+  inPratica:"Chiedere se le perdite fiscali 2020-2021 sono state ridotte dei contributi Covid: se sì, si possono riprendere.",
+  esempio:"Perdita 2020 di 150.000 euro ridotta di 40.000 di contributi a fondo perduto: quei 40.000 tornano perdita utilizzabile e valgono circa 9.600 euro di IRES sugli utili degli anni dopo."},
+"g26-stampa-registri":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"Farsi confermare chi conserva i libri contabili, come, e che bollo e marca temporale siano fatti nei termini.",
+  esempio:"Libro giornale digitale con 6.000 registrazioni nel 2026: bollo 16 euro ogni 2.500 = 48 euro, con F24 codice 2501 entro il 30 aprile 2027."},
+"g26-tasso-legale":{ verdetto:"sapere", chi:"Commercialista",
+  inPratica:"Gli interessi del ravvedimento costano meno: 1,6% l'anno dal 2026.",
+  esempio:"IVA di 10.000 euro pagata con 30 giorni di ritardo: circa 13 euro di interessi, più la sanzione ridotta che resta la voce principale."},
+"g26-iva-per-cassa":{ verdetto:"sapere", chi:"Commercialista",
+  inPratica:"Regime che rinvia l'IVA all'incasso ma anche la detrazione al pagamento: per un albergo di solito non conviene.",
+  esempio:"Tour operator che paga a 60 giorni una fattura da 20.000 euro: l'IVA si rinvia di due mesi, ma allo stesso tempo l'IVA di tutte le fatture dei fornitori non pagate resta bloccata."},
+"g26-verifiche-inizio-anno":{ verdetto:"sapere", chi:"Commercialista",
+  inPratica:"Controlli di gennaio su regimi semplificati e IVA trimestrale: non toccano una Srl con IVA mensile.",
+  esempio:"Se la Saslong fosse sotto i 500.000 euro di volume d'affari potrebbe scegliere l'IVA trimestrale, ma pagherebbe l'1% in più su ogni versamento."},
+"g26-codici-tributo-avvisi":{ verdetto:"sapere", chi:"Commercialista",
+  inPratica:"Se arriva un avviso bonario legato al concordato, esistono codici per pagarne solo una parte o rateizzare.",
+  esempio:"Avviso bonario da 6.000 euro di cui 2.000 contestabili: si versano i 4.000 riconosciuti con il codice dedicato e si discute il resto."},
+"g26-adempimenti-gen-feb-2026":{ verdetto:"preparare", chi:"Ufficio",
+  inPratica:"Ciclo di gennaio già passato: le stesse date tornano a gennaio 2027.",
+  esempio:"Il 16 gennaio 2027 partiranno IVA, contributi e ritenute di dicembre 2026: contabilità allo studio entro il 12."},
+"g26-non-applicabili":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Agenti, logistica, franchigia UE, STP, ONLUS, dogane: nessuna ci riguarda.",
+  esempio:"L'opzione IVA per la logistica scatterebbe solo se la Saslong fosse un'impresa di trasporto merci."},
+"partecipazioni-black-list":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Nessuna partecipazione estera né trust in gioco: niente da fare.",
+  esempio:"Servirebbe solo se un socio detenesse quote in società di Paesi a fiscalità privilegiata."}
+};
+const DOMANDE = {
+"iva-estera-2025":[
+  "Potete estrarre dalla contabilità 2025 le fatture con IVA austriaca e tedesca e indicarci il totale recuperabile per ciascuno Stato?",
+  "Ci sono spese per cui l'IVA estera non è rimborsabile in quel Paese (carburante, noleggio, ristorazione) e che vanno tolte dal conto?",
+  "L'istanza entro il 30 settembre la inviate voi? Che cosa vi serve da noi e per quale data?"],
+"assegnazione-agevolata":[
+  "Nel bilancio della Saslong ci sono immobili o beni mobili registrati che rientrano fra quelli assegnabili, cioè non strumentali per destinazione?",
+  "Per ciascuno, quanto costerebbe l'assegnazione ai soci o la trasformazione: imposta sostitutiva, registro, ipotecaria e catastale, IVA?",
+  "La compagine sociale al 30 settembre 2025 è compatibile con l'agevolazione? Ci sono riserve in sospensione d'imposta che farebbero scattare l'ulteriore 13%?",
+  "Se conviene, riusciamo ad avere l'atto dal notaio entro il 30 settembre?"],
+"iva-detrazione-biennale":[
+  "Negli ultimi due esercizi ci sono fatture passive con IVA non detratta per ricezione o registrazione tardiva? Si può recuperarla adesso?",
+  "Come impostiamo il sezionale per le fatture a cavallo d'anno nel nostro gestionale, e da quando?"],
+"fringe-auto":[
+  "Con l'elenco delle auto allegato (targa, prima immatricolazione, assegnatario), quale valore va in busta paga dal 2026 per ciascuna?",
+  "Per le auto oltre i cinque anni conviene tenerle in uso promiscuo, riassegnarle al solo uso aziendale o sostituirle?",
+  "Le trattenute già fatte nel 2025 per accessori e allestimenti vanno riviste?"],
+"welfare-familiari":[
+  "Possiamo attivare rimborsi per l'assistenza a genitori e suoceri dei dipendenti, anche non conviventi? Con quali limiti e documenti?",
+  "Per un dipendente tipo, quanto costa all'azienda rispetto a un aumento lordo equivalente?",
+  "Vale anche per gli stagionali con contratto a tempo determinato?"],
+"cpb-rinnovo":[
+  "La Saslong è in concordato per il biennio 2025-2026? Qual è la proposta dell'Agenzia per il 2026-2027 e come si confronta con il reddito che ci aspettiamo?",
+  "Quanto valgono per noi, in euro, i benefici del rinnovo su visto di conformità, interessi e acconti?",
+  "Quali annualità restano aperte più a lungo se rinnoviamo, e quanto costerebbe il ravvedimento speciale 2020-2023?",
+  "Qual è la data esatta entro cui dobbiamo decidere?"],
+"scorporo-terreni-irap":[
+  "Quanto vale ogni anno la quota terreno degli ammortamenti esclusa dalla base IRAP, e a quanto ammonta l'IRAP recuperabile sulle annualità ancora aperte?",
+  "Consigliate un'istanza di rimborso, visto che l'Agenzia è di parere contrario? Con quali costi e tempi in caso di contenzioso?",
+  "Per il futuro continuiamo a escludere la quota terreno dalla base IRAP o la deduciamo?"],
+"imu-novita":[
+  "Le dichiarazioni IMU della società sono tutte presentate e aggiornate? Ci sono variazioni degli ultimi anni ancora da dichiarare?",
+  "Le rendite catastali dell'albergo sono corrette o conviene chiederne una revisione?",
+  "Dal 2027 la dichiarazione è solo telematica: la trasmettete voi?"],
+"antieconomicita":[
+  "Quali contratti e listini dobbiamo tenere nel fascicolo per giustificare tariffe scontate a gruppi e tour operator?",
+  "I rapporti fra le società del gruppo (locazioni, servizi) sono a valori difendibili?"],
+"utili-ristretta-base":[
+  "Ci sono contestazioni in corso o chiuse in cui questa limitazione può aiutare i soci?"],
+"componenti-pluriennali":[
+  "Per i lavori sull'albergo in ammortamento, quali documenti dobbiamo conservare e per quanto tempo, cespite per cespite?"],
+"cessione-azienda-delibera":[
+  "Se in futuro affittassimo la gestione dell'albergo o cedessimo un ramo d'azienda, quali delibere e verbali servono prima della firma?"],
+"cassetto-fiscale":[
+  "Presidiate voi il cassetto fiscale della Saslong e ci avvisate degli atti in arrivo, oppure dobbiamo controllarlo noi? Con quale frequenza?"],
+"adempimenti-set-ott-2026":[
+  "Confermate le date di questo scadenzario per la Saslong ed entro quando volete da noi i documenti di ogni mese?"],
+"g26-rimborso-iva-annuale":[
+  "Quanto credito IVA prevedete a fine 2026 per la Saslong e da quanti anni si trascina in compensazione?",
+  "Rispettiamo la condizione dell'aliquota media (acquisti al 22%, vendite al 10%)? Se sì, conviene chiedere il rimborso o compensare?",
+  "Con il nostro punteggio ISA l'esonero da visto e garanzia arriva a 70.000 euro? Ci sono cause di esclusione, per esempio la disciplina delle società di comodo?"],
+"g26-compensazioni":[
+  "Risultano ruoli o cartelle scadute a nome della Saslong che potrebbero bloccare le compensazioni?",
+  "Quando prevedete di inviare la dichiarazione IVA, così da sbloccare il credito sopra i 5.000 euro?"],
+"g26-trasferte-tracciabilita":[
+  "Nelle note spese 2025 e 2026 già registrate ci sono vitto, alloggio o taxi pagati in contanti in Italia? Come li sistemiamo?",
+  "Ci date un modello di regolamento trasferte da far firmare allo staff, con carta aziendale e limiti giornalieri?",
+  "Le nostre sponsorizzazioni allo sci club sono inquadrate come pubblicità e non come rappresentanza?"],
+"g26-tabelle-aci-2026":[
+  "Per le auto assegnate, qual è il benefit 2026 con le nuove tabelle ACI e conviene far pagare al dipendente l'uso privato con fattura per detrarre tutta l'IVA?"],
+"g26-conto-termico":[
+  "Gli interventi energetici che stiamo valutando sull'albergo rientrano nel Conto Termico 3.0? Quale percentuale di spesa copre e chi presenta la domanda al GSE?",
+  "È cumulabile con altri incentivi o con i bandi della Provincia di Bolzano?"],
+"g26-bando-isi-inail":[
+  "Quali sono le finestre di domanda del bando ISI INAIL e con quale punteggio un albergo ha possibilità concrete?",
+  "Gli investimenti vanno fatti solo dopo la domanda? Quali categorie di spesa sono ammesse per noi?"],
+"g26-perdite-contributi-covid":[
+  "Le perdite fiscali 2020 e 2021 della Saslong sono state ridotte dei contributi Covid a fondo perduto?",
+  "Se sì, quanto vale la perdita recuperabile e conviene una dichiarazione integrativa?"],
+"g26-stampa-registri":[
+  "Chi conserva libro giornale, inventari e registro cespiti della Saslong, in digitale o in cartaceo?",
+  "Bollo e marca temporale dei registri 2025 sono stati assolti nei termini? Chi versa il bollo 2026 entro il 30 aprile 2027?"],
+"g26-tasso-legale":[
+  "Ci sono versamenti in ritardo del 2025 ancora da ravvedere per cui conviene chiudere ora con il tasso più basso?"],
+"g26-iva-per-cassa":[
+  "Con i tempi di incasso da agenzie e tour operator, il regime dell'IVA per cassa ha senso per la Saslong?"],
+"g26-verifiche-inizio-anno":[
+  "Confermate che la Saslong resta in contabilità ordinaria con IVA mensile e senza pro rata?"],
+"g26-codici-tributo-avvisi":[
+  "Se ricevessimo un avviso bonario legato al concordato, ci avvisate voi e gestite pagamento parziale o rateazione?"],
+"g26-adempimenti-gen-feb-2026":[
+  "Per il ciclo di gennaio 2027, entro che data volete da noi la contabilità di dicembre 2026?"]
+};
+VOCI_BASE.forEach(v=>{ const m=MOSSE[v.id]; if(m) Object.assign(v,m); if(DOMANDE[v.id]) v.domande=DOMANDE[v.id]; });
+
+const VERDETTI = {
+  subito:   {etichetta:"Fare subito",          sottotitolo:"c'è una scadenza vicina"},
+  studio:   {etichetta:"Chiedere allo studio", sottotitolo:"una domanda da fare al commercialista"},
+  preparare:{etichetta:"Preparare in ufficio", sottotitolo:"lavoro nostro, senza corsa"},
+  sapere:   {etichetta:"Solo da sapere",       sottotitolo:"nessuna azione, serve se arriva un controllo"},
+  ignorare: {etichetta:"Non ci riguarda",      sottotitolo:"verificata e archiviata"}
+};
+function completaVoci(){
+  stato.voci.forEach(v=>{
+    const m=MOSSE[v.id];
+    if(m) ["verdetto","inPratica","esempio","chi"].forEach(k=>{ if(v[k]===undefined) v[k]=m[k]; });
+    if(!v.domande && DOMANDE[v.id]) v.domande=DOMANDE[v.id];
+    if(!v.verdetto) v.verdetto = v.rilevanza==="alta" ? "subito" : v.rilevanza==="media" ? "studio" : v.rilevanza==="nulla" ? "ignorare" : "sapere";
+  });
+}
+
+/* ============================================================
+   2. MEMORIA
+   ============================================================ */
+const CHIAVE = "alpstay-radar-fiscale-v1";
+const LETTERA_DEFAULT = { azienda:"Saslong Srl – Smart Hotel Saslong", indirizzo:"Via Rezia 308, Ortisei (BZ)", referente:"", email:"info@saslong.eu", telefono:"+39 0471 774444", studio:"Spett.le Studio", emailStudio:"" };
+let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:"",chiave:""} };
+let memoriaAttiva = true;
+// Ordine: Firebase (archivio condiviso) > window.storage dentro Claude > memoria del browser.
+const dentroClaude = typeof window.storage !== "undefined";
+const FIREBASE_ATTIVO = typeof firebase !== "undefined" && !!FIREBASE_CONFIG.apiKey;
+let memoriaBrowser = null;
+try{ memoriaBrowser = window.localStorage; memoriaBrowser.getItem(CHIAVE); }catch(e){ memoriaBrowser=null; }
+let db=null, utente=null;
+const CHIAVE_LETTURA_LOCALE = CHIAVE+"-chiave-lettura";   // la chiave API non va mai nel database condiviso
+let ultimo = { voci:{}, fatte:"", note:"", imp:"" };     // ultimo stato scritto su Firebase, per inviare solo le differenze
+
+const codFatte = o => Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k.replace(/#/g,"__"),v]));
+const decFatte = o => Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k.replace(/__/g,"#"),v]));
+function impostazioniDaStato(){
+  return { preavviso:stato.preavviso, profilo:stato.profilo, profiloVersione:stato.profiloVersione||1,
+           lettera:stato.lettera||{}, lettura:{ proxy:(stato.lettura&&stato.lettura.proxy)||"" } };
+}
+function statoDaSnapshot(d){
+  d=d||{};
+  const voci=Object.values(d.voci||{}).sort((a,b)=>String(a.titolo).localeCompare(String(b.titolo)));
+  const imp=d.impostazioni||{};
+  return { voci, fatte:decFatte(d.fatte), note:d.note||{}, preavviso:imp.preavviso||30, profilo:imp.profilo||"",
+           profiloVersione:imp.profiloVersione||1, lettera:imp.lettera||{}, lettura:{proxy:(imp.lettura&&imp.lettura.proxy)||"", chiave:""} };
+}
+function aggiornaUltimo(){
+  ultimo.voci={}; stato.voci.forEach(v=>ultimo.voci[v.id]=JSON.stringify(v));
+  ultimo.fatte=JSON.stringify(codFatte(stato.fatte)); ultimo.note=JSON.stringify(stato.note||{}); ultimo.imp=JSON.stringify(impostazioniDaStato());
+}
+
+async function leggiMemoria(){
+  try{
+    if(FIREBASE_ATTIVO){
+      const snap=await db.ref(FIREBASE_NODO).get();
+      const st=statoDaSnapshot(snap.val());
+      if(memoriaBrowser) st.lettura.chiave=memoriaBrowser.getItem(CHIAVE_LETTURA_LOCALE)||"";
+      return st;
+    }
+    if(dentroClaude){ const r = await window.storage.get(CHIAVE, false); return r ? JSON.parse(r.value) : null; }
+    if(memoriaBrowser){ const v = memoriaBrowser.getItem(CHIAVE); return v ? JSON.parse(v) : null; }
+  }catch(e){ console.warn("lettura memoria", e); }
+  if(!FIREBASE_ATTIVO && !dentroClaude && !memoriaBrowser) memoriaAttiva = false;
+  return null;
+}
+async function salva(){
+  if(!memoriaAttiva) return;
+  try{
+    if(FIREBASE_ATTIVO){
+      const upd={};
+      stato.voci.forEach(v=>{ const j=JSON.stringify(v); if(ultimo.voci[v.id]!==j){ upd[FIREBASE_NODO+"/voci/"+v.id]=JSON.parse(j); ultimo.voci[v.id]=j; } });
+      const f=codFatte(stato.fatte), jf=JSON.stringify(f); if(jf!==ultimo.fatte){ upd[FIREBASE_NODO+"/fatte"]=Object.keys(f).length?f:null; ultimo.fatte=jf; }
+      const jn=JSON.stringify(stato.note||{}); if(jn!==ultimo.note){ upd[FIREBASE_NODO+"/note"]=Object.keys(stato.note||{}).length?stato.note:null; ultimo.note=jn; }
+      const imp=impostazioniDaStato(), ji=JSON.stringify(imp); if(ji!==ultimo.imp){ upd[FIREBASE_NODO+"/impostazioni"]=imp; ultimo.imp=ji; }
+      if(Object.keys(upd).length) await db.ref().update(upd);
+      if(memoriaBrowser) memoriaBrowser.setItem(CHIAVE_LETTURA_LOCALE,(stato.lettura&&stato.lettura.chiave)||"");
+      return;
+    }
+    if(dentroClaude) await window.storage.set(CHIAVE, JSON.stringify(stato), false);
+    else if(memoriaBrowser) memoriaBrowser.setItem(CHIAVE, JSON.stringify(stato));
+  }catch(e){ console.error("Salvataggio non riuscito", e); }
+}
+
+/* --- accesso e aggiornamento in tempo reale --- */
+function attendiAccesso(){
+  return new Promise(ok=>{
+    const box=$("#accesso"), es=$("#esitoAccesso");
+    firebase.auth().onAuthStateChanged(u=>{
+      utente=u;
+      if(u){ box.hidden=true; $("#utenteAttivo").hidden=false; $("#utenteEmail").textContent=u.email||""; ok(); }
+      else { box.hidden=false; $("#utenteAttivo").hidden=true; }
+    });
+    $("#btnAccedi").onclick=async()=>{
+      es.textContent="";
+      try{ await firebase.auth().signInWithEmailAndPassword($("#accEmail").value.trim(),$("#accPassword").value); }
+      catch(e){ es.textContent= /wrong-password|invalid-credential|user-not-found|invalid-login/.test(e.code||"") ? "E-mail o password non corretti." : "Accesso non riuscito: "+(e.message||e.code); }
+    };
+    $("#accPassword").onkeydown=e=>{ if(e.key==="Enter") $("#btnAccedi").click(); };
+    $("#btnEsci").onclick=()=>firebase.auth().signOut().then(()=>location.reload());
+  });
+}
+function ascoltaRemoto(){
+  db.ref(FIREBASE_NODO).on("value",snap=>{
+    const r=statoDaSnapshot(snap.val());
+    const firmaR=JSON.stringify([r.voci.map(v=>JSON.stringify(v)).sort(),codFatte(r.fatte),r.note,{p:r.preavviso,pr:r.profilo,l:r.lettera,x:r.lettura.proxy}]);
+    const firmaL=JSON.stringify([stato.voci.map(v=>JSON.stringify(v)).sort(),codFatte(stato.fatte),stato.note||{},{p:stato.preavviso,pr:stato.profilo,l:stato.lettera,x:(stato.lettura||{}).proxy||""}]);
+    if(firmaR===firmaL) return;
+    if(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("nota")) return; // qualcuno sta scrivendo: rimando
+    const chiave=(stato.lettura||{}).chiave||"";
+    stato={...stato,...r, lettura:{proxy:r.lettura.proxy,chiave}};
+    if(!stato.profilo) stato.profilo=PROFILO_DEFAULT;
+    completaVoci(); aggiornaUltimo(); ridisegnaTutto();
+    $("#giorniPreavviso").value=stato.preavviso; $("#profiloAzienda").value=stato.profilo;
+  });
+}
+
+function unisciBase(){
+  const presenti = new Set(stato.voci.map(v=>v.id));
+  VOCI_BASE.forEach(v=>{
+    if(presenti.has(v.id)) return;
+    const copia=JSON.parse(JSON.stringify(v));
+    stato.voci.push(copia);
+    // scadenze già passate da oltre un mese al momento dell'inserimento: non sono allerte, restano nello storico
+    (copia.scadenze||[]).forEach((s,i)=>{ if(giorniA(s.data) < -30) stato.fatte[copia.id+"#"+i]=true; });
+  });
+}
+
+/* ============================================================
+   3. DATE
+   ============================================================ */
+const OGGI = new Date(); OGGI.setHours(0,0,0,0);
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+function isoLocale(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function aData(s){ const p=String(s).split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
+function giorniA(s){ return Math.round((aData(s)-OGGI)/86400000); }
+function dataEstesa(s){ const d=aData(s); return d.getDate()+" "+MESI[d.getMonth()]+" "+d.getFullYear(); }
+function dataBreve(s){ const d=aData(s); return d.getDate()+" "+MESI[d.getMonth()].slice(0,3); }
+function livello(g){
+  if(g<0) return "scaduta";
+  if(g<=7) return "critica";
+  if(g<=stato.preavviso) return "preallarme";
+  if(g<=90) return "prossima";
+  return "futura";
+}
+function testoConto(g){
+  if(g<0) return "scaduta da "+Math.abs(g)+" "+(Math.abs(g)===1?"giorno":"giorni");
+  if(g===0) return "scade oggi";
+  if(g===1) return "manca 1 giorno";
+  return "mancano "+g+" giorni";
+}
+function tutteScadenze(){
+  const out=[];
+  stato.voci.forEach(v=>(v.scadenze||[]).forEach((s,i)=>{
+    out.push({ sid:v.id+"#"+i, voce:v, ...s, giorni:giorniA(s.data) });
+  }));
+  return out.sort((a,b)=> aData(a.data)-aData(b.data));
+}
+
+/* ============================================================
+   4. VISTE
+   ============================================================ */
+const $ = q=>document.querySelector(q);
+const $$ = q=>Array.from(document.querySelectorAll(q));
+function esc(t){ return String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function mostraVista(nome){
+  $$("nav button").forEach(b=>b.classList.toggle("attivo", b.dataset.vista===nome));
+  $$("main section").forEach(s=>s.hidden = s.id!=="vista-"+nome);
+  window.scrollTo({top:0,behavior:"auto"});
+}
+
+/* --- righello 90 giorni --- */
+function disegnaRighello(){
+  const box=$("#righello");
+  const finestra=90;
+  const prossime=tutteScadenze().filter(s=>s.giorni>=-7 && s.giorni<=finestra && !stato.fatte[s.sid]);
+  let html='<div class="asse"></div>';
+  for(let m=0;m<=3;m++){
+    const d=new Date(OGGI); d.setDate(d.getDate()+m*30);
+    const pos=(m*30/finestra)*100;
+    html+='<div class="mese" style="left:'+Math.min(pos,99)+'%"><b></b>'+MESI[d.getMonth()].slice(0,3)+"</div>";
+  }
+  html+='<div class="oggi-tacca" style="left:0"><span>oggi</span></div>';
+  prossime.forEach(s=>{
+    const pos=Math.max(0,Math.min(100,(s.giorni/finestra)*100));
+    const liv=livello(s.giorni);
+    const col=liv==="scaduta"?"var(--scaduta)":liv==="critica"?"var(--critica)":liv==="preallarme"?"var(--preallarme)":"var(--ok)";
+    html+='<button class="tacca '+(s.voce.rilevanza==="alta"?"alta":"")+'" style="left:'+pos+'%" data-voce="'+s.voce.id+'" title="'+esc(dataEstesa(s.data)+" — "+s.descrizione)+'">'+
+          '<em>'+dataBreve(s.data)+'</em><i style="background:'+col+'"></i><u></u></button>';
+  });
+  box.innerHTML=html;
+  box.querySelectorAll(".tacca").forEach(b=>b.addEventListener("click",()=>{
+    mostraVista("archivio"); apriVoce(b.dataset.voce);
+  }));
+}
+
+/* --- cruscotto --- */
+function disegnaCruscotto(){
+  disegnaRighello();
+  const allerte=tutteScadenze().filter(s=>!stato.fatte[s.sid] && s.giorni<=stato.preavviso);
+  const box=$("#listaAllerte");
+  if(!allerte.length){
+    box.innerHTML='<p class="vuoto">Niente in scadenza nei prossimi '+stato.preavviso+' giorni. Le date più lontane restano nello scadenzario.</p>';
+  }else{
+    box.innerHTML=allerte.map(s=>{
+      const liv=livello(s.giorni);
+      return '<div class="allerta '+liv+'">'+
+        '<div class="allerta-testa"><span class="conto '+liv+'">'+testoConto(s.giorni)+'</span>'+
+        '<span class="data-sc">'+dataEstesa(s.data)+(s.daVerificare?" · data da confermare":"")+'</span></div>'+
+        '<h4>'+esc(s.descrizione)+'</h4>'+
+        '<p>'+esc(s.voce.titolo)+'</p>'+
+        ((s.voce.inPratica||s.voce.azione)?'<p class="in-pratica">'+esc(s.voce.inPratica||s.voce.azione)+'</p>':'')+
+        (s.voce.esempio?'<p class="per-esempio">Per esempio: '+esc(s.voce.esempio)+'</p>':'')+
+        '<div class="azioni-riga">'+
+          '<button class="bottone piccolo" data-apri="'+s.voce.id+'">Apri la scheda</button>'+
+          '<button class="bottone piccolo" data-fatta="'+s.sid+'">Segna come gestita</button>'+
+        '</div></div>';
+    }).join("");
+  }
+  const badge=$("#badgeAllerte");
+  const urgenti=allerte.filter(s=>s.giorni<=stato.preavviso).length;
+  badge.hidden=urgenti===0; badge.textContent=urgenti;
+
+  disegnaMosse();
+  collegaBottoni(box.parentElement);
+}
+
+function prossimaScadenza(v){
+  const s=(v.scadenze||[]).map((x,i)=>({...x, sid:v.id+"#"+i, giorni:giorniA(x.data)}))
+    .filter(x=>!stato.fatte[x.sid]).sort((a,b)=>a.giorni-b.giorni);
+  return s[0]||null;
+}
+
+function disegnaMosse(){
+  const attive=stato.voci.filter(v=>v.stato!=="chiusa" && v.stato!=="non applicabile");
+  let html="";
+  ["subito","studio","preparare"].forEach(g=>{
+    const voci=attive.filter(v=>(v.verdetto||"sapere")===g);
+    if(!voci.length) return;
+    voci.sort((a,b)=>{ const x=prossimaScadenza(a), y=prossimaScadenza(b); return (x?x.giorni:9999)-(y?y.giorni:9999); });
+    html+='<div class="gruppo-mosse"><span class="verdetto '+g+'">'+VERDETTI[g].etichetta+"</span><h3>"+VERDETTI[g].sottotitolo+"</h3>"+
+      (g==="studio"?'<button class="bottone piccolo" data-domande-tutte="1">Tutte le domande in un PDF</button>':"")+"</div>";
+    html+=voci.map(v=>{
+      const p=prossimaScadenza(v);
+      return '<div class="mossa '+g+'">'+
+        '<span class="quando">'+(p ? dataEstesa(p.data)+" · "+testoConto(p.giorni) : "nessuna scadenza fissa")+"</span>"+
+        "<h4>"+esc(v.titolo)+"</h4>"+
+        '<p class="in-pratica">'+esc(v.inPratica||v.azione||"")+"</p>"+
+        (v.esempio?'<p class="per-esempio">Per esempio: '+esc(v.esempio)+"</p>":"")+
+        (v.chi?'<p class="chi">Chi se ne occupa: '+esc(v.chi)+"</p>":"")+
+        '<div class="azioni-riga">'+
+          '<button class="bottone piccolo" data-apri="'+v.id+'">Dettagli e norma</button>'+
+          (v.verdetto!=="ignorare"?'<button class="bottone piccolo oro" data-domanda="'+v.id+'">Domanda al commercialista (PDF)</button>'+
+          '<button class="bottone piccolo" data-mail="'+v.id+'">Prepara la mail</button>':"")+
+          '<button class="bottone piccolo" data-chiudi="'+v.id+'">Fatto, archivia</button>'+
+        "</div></div>";
+    }).join("");
+  });
+  $("#listaMosse").innerHTML = html || '<p class="vuoto">Nessuna mossa aperta. Le novità che archivi compaiono qui con la proposta operativa.</p>';
+}
+
+/* --- scadenzario --- */
+function disegnaScadenzario(){
+  const mostraFatte=$("#mostraFatte").checked;
+  const righe=tutteScadenze().filter(s=>mostraFatte||!stato.fatte[s.sid]);
+  const box=$("#listaScadenze");
+  if(!righe.length){ box.innerHTML='<p class="vuoto">Nessuna scadenza in archivio.</p>'; return; }
+  let annoCorrente=null, html="";
+  righe.forEach(s=>{
+    const anno=aData(s.data).getFullYear();
+    if(anno!==annoCorrente){ annoCorrente=anno; html+='<h3 style="margin:26px 0 6px;color:var(--oro)">'+anno+"</h3>"; }
+    const liv=livello(s.giorni), fatta=!!stato.fatte[s.sid];
+    html+='<div class="allerta '+(fatta?"":liv)+'">'+
+      '<div class="allerta-testa"><span class="conto '+(fatta?"":liv)+'">'+dataEstesa(s.data)+'</span>'+
+      '<span class="data-sc">'+(fatta?"gestita":testoConto(s.giorni))+(s.daVerificare?" · data da confermare":"")+'</span></div>'+
+      '<h4 class="'+(fatta?"fatta":"")+'">'+esc(s.descrizione)+'</h4>'+
+      '<p style="color:var(--grigio)">'+esc(s.voce.titolo)+'</p>'+
+      '<div class="azioni-riga">'+
+        '<button class="bottone piccolo" data-apri="'+s.voce.id+'">Apri la scheda</button>'+
+        '<button class="bottone piccolo" data-fatta="'+s.sid+'">'+(fatta?"Riapri":"Segna come gestita")+'</button>'+
+      '</div></div>';
+  });
+  box.innerHTML=html;
+  collegaBottoni(box);
+}
+
+/* --- archivio --- */
+function schedaVoce(v){
+  const cat=(v.categorie||[]).map(c=>'<span class="tag">'+esc(c)+"</span>").join("");
+  const sc=(v.scadenze||[]).map((s,i)=>{
+    const sid=v.id+"#"+i, fatta=!!stato.fatte[sid], g=giorniA(s.data);
+    return '<div class="scadenza-riga"><b class="'+(fatta?"fatta":"")+'">'+dataEstesa(s.data)+"</b>"+
+      '<span class="'+(fatta?"fatta":"")+'">'+esc(s.descrizione)+"</span>"+
+      '<span class="data-sc">'+(fatta?"gestita":testoConto(g))+"</span>"+
+      '<button class="bottone piccolo" data-fatta="'+sid+'">'+(fatta?"Riapri":"Gestita")+"</button></div>";
+  }).join("");
+  const vd=VERDETTI[v.verdetto]||VERDETTI.sapere;
+  return '<article class="voce" id="v-'+v.id+'">'+
+    '<div class="voce-testa" data-toggle="'+v.id+'" role="button" tabindex="0">'+
+      '<div style="flex:1">'+
+        "<h3>"+esc(v.titolo)+"</h3>"+
+        (v.inPratica?'<p class="in-pratica">'+esc(v.inPratica)+"</p>":"")+
+      "</div>"+
+      '<span class="verdetto '+(v.verdetto||"sapere")+'">'+vd.etichetta+"</span>"+
+    "</div>"+
+    (v.esempio?'<p class="per-esempio">Per esempio: '+esc(v.esempio)+"</p>":"")+
+    (v.chi?'<p class="chi">Chi se ne occupa: '+esc(v.chi)+"</p>":"")+
+    '<p class="rif" style="margin-top:8px">'+esc(v.riferimento||"")+"</p>"+
+    '<p class="rif">'+esc(v.fonte||"")+"</p>"+
+    "<div>"+cat+'<span class="tag">rilevanza '+esc(v.rilevanza)+"</span></div>"+
+    '<div class="corpo">'+
+      '<div class="campo"><h5>Che cosa dice</h5><p>'+esc(v.sintesi)+"</p></div>"+
+      (v.impatto?'<div class="campo"><h5>Che cosa cambia per la Saslong</h5><p>'+esc(v.impatto)+"</p></div>":"")+
+      (v.opportunita?'<div class="campo opportunita"><h5>Occasione da sfruttare</h5><p>'+esc(v.opportunita)+"</p></div>":"")+
+      (v.azione?'<div class="campo"><h5>Prossima mossa</h5><p>'+esc(v.azione)+"</p></div>":"")+
+      (sc?'<div class="campo"><h5>Scadenze</h5>'+sc+"</div>":"")+
+      (v.verdetto!=="ignorare"?'<div class="campo"><h5>Domanda al commercialista</h5><div class="azioni-riga" style="margin-top:4px">'+
+        '<button class="bottone piccolo oro" data-domanda="'+v.id+'">Scarica la domanda (PDF)</button>'+
+        '<button class="bottone piccolo" data-mail="'+v.id+'">Prepara la mail</button>'+
+        '<button class="bottone piccolo" data-copia="'+v.id+'">Copia il testo</button></div></div>':"")+
+      '<div class="campo"><h5>Stato</h5><select class="stato" data-stato="'+v.id+'">'+
+        ["da valutare","in corso","chiusa","non applicabile"].map(s=>'<option value="'+s+'"'+(v.stato===s?" selected":"")+">"+s+"</option>").join("")+
+      "</select></div>"+
+      '<div class="campo"><h5>Note interne</h5><textarea class="nota" data-nota="'+v.id+'" placeholder="Che cosa ha risposto il commercialista, che cosa abbiamo deciso…">'+esc(stato.note[v.id]||"")+"</textarea></div>"+
+    "</div></article>";
+}
+
+function disegnaArchivio(){
+  const q=$("#cerca").value.trim().toLowerCase();
+  const fr=$("#fRilevanza").value, fc=$("#fCategoria").value, fs=$("#fStato").value, fv=$("#fVerdetto").value;
+  const filtrate=stato.voci.filter(v=>{
+    if(fv && (v.verdetto||"sapere")!==fv) return false;
+    if(fr && v.rilevanza!==fr) return false;
+    if(fs && v.stato!==fs) return false;
+    if(fc && !(v.categorie||[]).includes(fc)) return false;
+    if(!q) return true;
+    const testo=[v.titolo,v.riferimento,v.fonte,v.sintesi,v.impatto,v.opportunita,v.azione,v.inPratica,v.esempio,v.chi,
+      (v.categorie||[]).join(" "),stato.note[v.id]||"",
+      (v.scadenze||[]).map(s=>s.descrizione+" "+s.data).join(" ")].join(" ").toLowerCase();
+    return testo.includes(q);
+  });
+  const ordine={subito:0,studio:1,preparare:2,sapere:3,ignorare:4};
+  filtrate.sort((a,b)=>(ordine[a.verdetto||"sapere"]-ordine[b.verdetto||"sapere"]) || String(b.dataFonte).localeCompare(String(a.dataFonte)));
+  $("#contatoreArchivio").textContent=filtrate.length+" "+(filtrate.length===1?"voce":"voci")+" su "+stato.voci.length;
+  $("#listaArchivio").innerHTML = filtrate.length
+    ? filtrate.map(schedaVoce).join("")
+    : '<p class="vuoto">Nessuna voce con questi filtri. Prova a togliere un filtro o a cercare il numero del decreto.</p>';
+  collegaBottoni($("#listaArchivio"));
+}
+
+function aggiornaFiltroCategorie(){
+  const sel=$("#fCategoria"), corrente=sel.value;
+  const cats=[...new Set(stato.voci.flatMap(v=>v.categorie||[]))].sort();
+  sel.innerHTML='<option value="">Tutti gli argomenti</option>'+cats.map(c=>'<option value="'+esc(c)+'">'+esc(c)+"</option>").join("");
+  sel.value=corrente;
+}
+
+function apriVoce(id){
+  disegnaArchivio();
+  const el=document.getElementById("v-"+id);
+  if(el){ el.classList.add("aperta"); el.scrollIntoView({block:"center"}); }
+}
+
+/* --- collegamenti comuni --- */
+function collegaBottoni(radice){
+  radice.querySelectorAll("[data-apri]").forEach(b=>b.onclick=()=>{ mostraVista("archivio"); apriVoce(b.dataset.apri); });
+  radice.querySelectorAll("[data-fatta]").forEach(b=>b.onclick=async()=>{
+    const sid=b.dataset.fatta;
+    if(stato.fatte[sid]) delete stato.fatte[sid]; else stato.fatte[sid]=true;
+    await salva(); ridisegnaTutto();
+  });
+  radice.querySelectorAll("[data-toggle]").forEach(t=>{
+    t.onclick=()=>t.closest(".voce").classList.toggle("aperta");
+    t.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); t.click(); } };
+  });
+  radice.querySelectorAll("[data-domanda]").forEach(b=>b.onclick=()=>{ const v=stato.voci.find(x=>x.id===b.dataset.domanda); if(v) scaricaPdfDomande([v]); });
+  radice.querySelectorAll("[data-domande-tutte]").forEach(b=>b.onclick=()=>{
+    const voci=stato.voci.filter(v=>v.verdetto==="studio" && v.stato!=="chiusa" && v.stato!=="non applicabile");
+    if(voci.length) scaricaPdfDomande(voci);
+  });
+  radice.querySelectorAll("[data-mail]").forEach(b=>b.onclick=()=>{ const v=stato.voci.find(x=>x.id===b.dataset.mail); if(v) apriMailDomanda(v); });
+  radice.querySelectorAll("[data-copia]").forEach(b=>b.onclick=async()=>{
+    const v=stato.voci.find(x=>x.id===b.dataset.copia); if(!v) return;
+    try{ await navigator.clipboard.writeText(testoDomanda(costruisciDomanda(v))); b.textContent="Testo copiato"; setTimeout(()=>b.textContent="Copia il testo",2500); }
+    catch(e){ scarica("domanda.txt",testoDomanda(costruisciDomanda(v)),"text/plain"); }
+  });
+  radice.querySelectorAll("[data-chiudi]").forEach(b=>b.onclick=async()=>{
+    const v=stato.voci.find(x=>x.id===b.dataset.chiudi);
+    if(v){ v.stato="chiusa"; await salva(); ridisegnaTutto(); }
+  });
+  radice.querySelectorAll("[data-stato]").forEach(s=>s.onchange=async()=>{
+    const v=stato.voci.find(x=>x.id===s.dataset.stato); if(v){ v.stato=s.value; await salva(); disegnaCruscotto(); }
+  });
+  radice.querySelectorAll("[data-nota]").forEach(t=>{
+    let timer; t.oninput=()=>{ clearTimeout(timer); timer=setTimeout(async()=>{ stato.note[t.dataset.nota]=t.value; await salva(); },500); };
+  });
+}
+
+function ridisegnaTutto(){
+  aggiornaFiltroCategorie();
+  disegnaCruscotto();
+  disegnaScadenzario();
+  disegnaArchivio();
+}
+
+/* ============================================================
+   5. CALENDARIO .ICS E RIEPILOGO
+   ============================================================ */
+function pulisciIcs(t){ return String(t).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n"); }
+function generaIcs(){
+  const ora=new Date().toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
+  let out=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//AlpStay//Radar fiscale//IT","CALSCALE:GREGORIAN","METHOD:PUBLISH"];
+  tutteScadenze().filter(s=>!stato.fatte[s.sid] && s.giorni>=-30).forEach(s=>{
+    const d=aData(s.data), fine=new Date(d); fine.setDate(fine.getDate()+1);
+    const f=x=>x.getFullYear()+String(x.getMonth()+1).padStart(2,"0")+String(x.getDate()).padStart(2,"0");
+    out=out.concat([
+      "BEGIN:VEVENT",
+      "UID:"+s.sid.replace(/[^a-zA-Z0-9-]/g,"")+"@radar.alpstay",
+      "DTSTAMP:"+ora,
+      "DTSTART;VALUE=DATE:"+f(d),
+      "DTEND;VALUE=DATE:"+f(fine),
+      "SUMMARY:Fisco Saslong — "+pulisciIcs(s.descrizione),
+      "DESCRIPTION:"+pulisciIcs(s.voce.titolo+"\n"+(s.voce.azione||"")+"\n"+(s.voce.riferimento||"")),
+      "BEGIN:VALARM","TRIGGER:-P"+stato.preavviso+"D","ACTION:DISPLAY","DESCRIPTION:"+pulisciIcs("Fra "+stato.preavviso+" giorni: "+s.descrizione),"END:VALARM",
+      "BEGIN:VALARM","TRIGGER:-P7D","ACTION:DISPLAY","DESCRIPTION:"+pulisciIcs("Fra 7 giorni: "+s.descrizione),"END:VALARM",
+      "END:VEVENT"
+    ]);
+  });
+  out.push("END:VCALENDAR");
+  return out.join("\r\n");
+}
+function scarica(nome,contenuto,tipo){
+  const b=new Blob([contenuto],{type:tipo});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(b); a.download=nome; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function riepilogoTesto(){
+  const righe=tutteScadenze().filter(s=>!stato.fatte[s.sid] && s.giorni<=60);
+  let t="Radar fiscale Saslong Srl — punti aperti al "+dataEstesa(isoLocale(OGGI))+"\n\n";
+  t+="SCADENZE ENTRO 60 GIORNI\n";
+  t+= righe.length ? righe.map(s=>"• "+dataEstesa(s.data)+" ("+testoConto(s.giorni)+") — "+s.descrizione+" ["+s.voce.titolo+"]").join("\n") : "• nessuna";
+  const occ=stato.voci.filter(v=>v.verdetto==="studio" && v.stato!=="chiusa" && v.stato!=="non applicabile");
+  t+="\n\nDOMANDE PER LO STUDIO\n";
+  t+= occ.length ? occ.map(v=>"• "+v.titolo+" ("+v.riferimento+")\n  "+(v.inPratica||v.azione||"")+
+      (v.esempio?"\n  Esempio: "+v.esempio:"")+(v.opportunita?"\n  Perché: "+v.opportunita:"")).join("\n\n") : "• nessuna";
+  return t;
+}
+
+/* ============================================================
+   5b. DOMANDA AL COMMERCIALISTA GIÀ SCRITTA
+   ============================================================ */
+function costruisciDomanda(v){
+  const L={...LETTERA_DEFAULT,...(stato.lettera||{})};
+  const sc=(v.scadenze||[]).map((x,i)=>({...x,sid:v.id+"#"+i})).filter(x=>!stato.fatte[x.sid]).sort((a,b)=>aData(a.data)-aData(b.data));
+  let entro=null;
+  if(sc.length){ const d=aData(sc[0].data); d.setDate(d.getDate()-7); if(d>OGGI) entro=isoLocale(d); }
+  if(!entro){ const d=new Date(OGGI); d.setDate(d.getDate()+10); entro=isoLocale(d); }
+  const domande=(v.domande&&v.domande.length)?v.domande:[
+    "La novità si applica al nostro caso? Se sì, con quali condizioni?",
+    "Quali documenti o dati vi servono da noi per procedere?",
+    "Entro quando dobbiamo decidere e quali sono i costi dell'operazione?"];
+  const blocchi=[
+    {t:"Riferimento", p:(v.riferimento||"")+(v.fonte?"\nSegnalato in: "+v.fonte:"")},
+    {t:"Che cosa abbiamo capito", p:v.sintesi||""},
+    {t:"Perché ci interessa", p:[v.impatto,v.opportunita].filter(Boolean).join("\n")},
+    {t:"Le nostre domande", elenco:domande}
+  ];
+  if(sc.length) blocchi.push({t:"Date da rispettare", elenco:sc.map(x=>dataEstesa(x.data)+": "+x.descrizione)});
+  blocchi.push({t:"Tempi", p:"Per poter decidere in tempo vi chiediamo una risposta, anche breve, entro il "+dataEstesa(entro)+". Restiamo a disposizione per qualsiasi documento vi serva."});
+  return {
+    oggetto:"Richiesta di parere: "+v.titolo,
+    mittente:L, data:dataEstesa(isoLocale(OGGI)),
+    saluto:L.studio+",\ncon la presente vi sottoponiamo una novità segnalata nella circolare che ci avete inviato e alcune domande sul nostro caso.",
+    blocchi,
+    firma:[L.referente, L.azienda, L.indirizzo, [L.email,L.telefono].filter(Boolean).join(" · ")].filter(Boolean)
+  };
+}
+function testoDomanda(d){
+  let t="Oggetto: "+d.oggetto+"\n\n"+d.saluto+"\n\n";
+  d.blocchi.forEach(b=>{ t+=b.t.toUpperCase()+"\n"; if(b.p) t+=b.p+"\n"; if(b.elenco) b.elenco.forEach((e,i)=>t+=(i+1)+". "+e+"\n"); t+="\n"; });
+  t+="Cordiali saluti\n"+d.firma.join("\n");
+  return t;
+}
+function scaricaPdfDomande(voci){
+  if(!window.jspdf||!window.jspdf.jsPDF){
+    const t=voci.map(v=>testoDomanda(costruisciDomanda(v))).join("\n\n----------------------------------------\n\n");
+    scarica("domande-commercialista.txt",t,"text/plain");
+    alert("La libreria per il PDF non si è caricata: ho scaricato il testo in formato .txt. Ricarica la pagina e riprova per il PDF.");
+    return;
+  }
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const M=20, W=210-2*M; let y=M;
+  const oro=[176,141,58], grigio=[90,90,90];
+  const controlla=(h)=>{ if(y+h>277){ doc.addPage(); y=M; } };
+  const para=(testo,dim,stile,colore,interlinea)=>{
+    doc.setFont("helvetica",stile||"normal"); doc.setFontSize(dim); doc.setTextColor(...(colore||[0,0,0]));
+    doc.splitTextToSize(String(testo),W).forEach(r=>{ controlla(interlinea); doc.text(r,M,y); y+=interlinea; });
+  };
+  const elenco=(voci_,dim)=>{
+    doc.setFont("helvetica","normal"); doc.setFontSize(dim); doc.setTextColor(0,0,0);
+    voci_.forEach((e,i)=>{
+      const righe=doc.splitTextToSize(String(e),W-8);
+      righe.forEach((r,k)=>{ controlla(5.2); if(k===0) doc.text((i+1)+".",M,y); doc.text(r,M+8,y); y+=5.2; });
+      y+=1.2;
+    });
+  };
+  voci.forEach((v,idx)=>{
+    if(idx>0){ doc.addPage(); y=M; }
+    const d=costruisciDomanda(v);
+    // intestazione
+    doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(0,0,0); doc.text(d.mittente.azienda,M,y); y+=5;
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...grigio);
+    [d.mittente.indirizzo,[d.mittente.email,d.mittente.telefono].filter(Boolean).join("  ·  ")].filter(Boolean).forEach(r=>{ doc.text(r,M,y); y+=4.2; });
+    doc.text("Ortisei, "+d.data,210-M,y-4.2,{align:"right"});
+    y+=4; doc.setDrawColor(...oro); doc.setLineWidth(0.6); doc.line(M,y,210-M,y); y+=9;
+    para(d.mittente.studio,11,"normal",[0,0,0],5.5); y+=3;
+    para("Oggetto: "+d.oggetto,13,"bold",[0,0,0],6.2); y+=3;
+    para(d.saluto.split("\n").slice(1).join(" "),10.5,"normal",[0,0,0],5.2); y+=3;
+    d.blocchi.forEach(b=>{
+      controlla(14); y+=2;
+      para(b.t,10,"bold",oro,5.5);
+      if(b.p) b.p.split("\n").forEach(r=>para(r,10.5,"normal",[0,0,0],5.2));
+      if(b.elenco) elenco(b.elenco,10.5);
+      y+=2;
+    });
+    y+=3; controlla(22);
+    para("Cordiali saluti",10.5,"normal",[0,0,0],5.2); y+=2;
+    d.firma.forEach((r,i)=>para(r,10.5,i===0?"bold":"normal",i===0?[0,0,0]:grigio,5));
+  });
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...grigio); doc.text("Radar fiscale AlpStay  ·  pagina "+i+" di "+n,105,290,{align:"center"}); }
+  const nome=voci.length===1 ? "domanda-"+voci[0].id+".pdf" : "domande-commercialista-"+isoLocale(OGGI)+".pdf";
+  doc.save(nome);
+}
+function apriMailDomanda(v){
+  const d=costruisciDomanda(v);
+  const L=d.mittente;
+  const corpo=d.saluto+"\n\n"+d.blocchi.filter(b=>b.t==="Le nostre domande").map(b=>b.elenco.map((e,i)=>(i+1)+". "+e).join("\n")).join("")+
+    "\n\nIn allegato trovate la richiesta completa in PDF, con riferimenti e date.\n\nCordiali saluti\n"+d.firma.join("\n");
+  window.location.href="mailto:"+encodeURIComponent(L.emailStudio||"")+"?subject="+encodeURIComponent(d.oggetto)+"&body="+encodeURIComponent(corpo);
+}
+
+/* ============================================================
+   6. LETTURA AUTOMATICA DELLE CIRCOLARI
+   ============================================================ */
+function spezza(testo,dim){
+  const parti=[]; let corrente="";
+  testo.split(/\n\s*\n/).forEach(p=>{
+    if((corrente+p).length>dim && corrente){ parti.push(corrente); corrente=p; }
+    else corrente+=(corrente?"\n\n":"")+p;
+  });
+  if(corrente.trim()) parti.push(corrente);
+  return parti;
+}
+function estraiJson(t){
+  let s=String(t||"").replace(/```json/gi,"").replace(/```/g,"").trim();
+  const a=s.indexOf("[");
+  if(a===-1) throw new Error("risposta non in formato elenco");
+  s=s.slice(a);
+  // primo tentativo: array completo
+  const b=s.lastIndexOf("]");
+  if(b!==-1){ try{ const arr=JSON.parse(s.slice(0,b+1)); if(Array.isArray(arr)) return arr; }catch(e){} }
+  // secondo tentativo: recupero gli oggetti completi uno per uno (risposta tagliata in coda)
+  const oggetti=[]; let prof=0, inizio=-1, inStr=false, esc=false;
+  for(let i=1;i<s.length;i++){
+    const c=s[i];
+    if(inStr){ if(esc) esc=false; else if(c==="\\") esc=true; else if(c==='"') inStr=false; continue; }
+    if(c==='"'){ inStr=true; continue; }
+    if(c==="{"){ if(prof===0) inizio=i; prof++; }
+    else if(c==="}"){ prof--; if(prof===0 && inizio!==-1){ try{ oggetti.push(JSON.parse(s.slice(inizio,i+1))); }catch(e){} inizio=-1; } }
+  }
+  if(!oggetti.length) throw new Error("nessuna voce leggibile nella risposta");
+  return oggetti;
+}
+async function chiamaModello(corpo){
+  const L=stato.lettura||{};
+  let url="https://api.anthropic.com/v1/messages";
+  const headers={"Content-Type":"application/json"};
+  if(L.proxy){ url=L.proxy.replace(/\/+$/,""); }
+  else if(L.chiave){ headers["x-api-key"]=L.chiave; headers["anthropic-version"]="2023-06-01"; headers["anthropic-dangerous-direct-browser-access"]="true"; }
+  let r;
+  try{ r=await fetch(url,{method:"POST",headers,body:JSON.stringify(corpo)}); }
+  catch(e){
+    throw new Error("il browser non raggiunge il servizio di lettura ("+e.message+"). Se la pagina è aperta fuori da Claude, vai in Impostazioni e inserisci l'indirizzo del proxy o la chiave API, poi usa Prova il collegamento");
+  }
+  return r;
+}
+async function leggiErroreApi(r){
+  try{ const j=await r.json(); return (j.error&&j.error.message)||JSON.stringify(j).slice(0,200); }catch(e){ return "risposta "+r.status; }
+}
+async function analizzaPezzo(pezzo,fonte){
+  const istruzioni =
+"Profilo dell'azienda: "+stato.profilo+"\n\n"+
+"Leggi il testo della circolare fiscale qui sotto e individua le novità che contano per questa azienda.\n"+
+"Rispondi SOLO con un array JSON valido, senza testo intorno e senza markdown, con al massimo 2 oggetti: scegli le due novità più importanti per questa azienda in questo blocco; se nessuna la riguarda restituisci [].\n"+
+"Sii sintetico: la risposta intera deve restare sotto le 450 parole.\n"+
+"Ogni oggetto ha esattamente queste chiavi: titolo, riferimento, sintesi, impatto, opportunita, azione, inPratica, esempio, chi, verdetto, rilevanza, categorie, scadenze.\n"+
+"- titolo: breve, in italiano, senza maiuscolo integrale\n"+
+"- riferimento: articolo, decreto, circolare o sentenza citati\n"+
+"- sintesi: massimo 35 parole, parole tue\n"+
+"- impatto: che cosa cambia in concreto per questa azienda, massimo 25 parole\n"+
+"- opportunita: come sfruttarla in termini di risparmio, cassa o rischio evitato; null se non c'è\n"+
+"- azione: la prossima mossa pratica per l'ufficio, massimo 25 parole\n"+
+"- inPratica: una sola frase, massimo 20 parole, che si capisce a colpo d'occhio, con il verbo all'infinito o alla prima persona plurale\n"+
+"- esempio: un esempio concreto con numeri tondi calato su un albergo, massimo 25 parole; null se non ha senso\n"+
+"- chi: chi deve muoversi, fra ufficio, commercialista, consulente del lavoro, direzione e soci\n"+
+"- domande: array di 2 domande brevi, in italiano, da rivolgere al commercialista sul caso di questa azienda\n"+
+"- verdetto: subito se c'è una scadenza vicina, studio se serve una decisione del commercialista, preparare se è lavoro d'ufficio, sapere se non serve fare nulla, ignorare se non riguarda l'azienda\n"+
+"- rilevanza: alta, media, bassa oppure nulla\n"+
+"- categorie: array di 1-3 parole chiave (es. IVA, Immobili, Lavoro, IMU, Accertamento, Adempimenti)\n"+
+"- scadenze: array di oggetti {data:\"AAAA-MM-GG\", descrizione:\"...\"}; usa solo date scritte nel testo, altrimenti array vuoto\n\n"+
+"TESTO:\n"+pezzo;
+  const r=await chiamaModello({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:istruzioni}]});
+  if(!r.ok){
+    const m=await leggiErroreApi(r);
+    if(r.status===401||r.status===403) throw new Error("accesso al servizio di lettura negato ("+r.status+"): la lettura automatica funziona solo quando la pagina è aperta dentro Claude; su un altro sito serve una chiave API o un proxy");
+    throw new Error("il servizio di lettura ha risposto "+r.status+": "+m);
+  }
+  const dati=await r.json();
+  const testo=(dati.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("\n");
+  if(dati.stop_reason==="max_tokens") console.warn("risposta tagliata, recupero le voci complete");
+  return normalizzaVoci(estraiJson(testo),fonte);
+}
+function normalizzaVoci(lista,fonte){
+  return (Array.isArray(lista)?lista:[]).map(v=>({
+    id:"ai-"+Math.random().toString(36).slice(2,9),
+    titolo:v.titolo||"Senza titolo",
+    riferimento:v.riferimento||"",
+    fonte:fonte||"Circolare importata",
+    dataFonte:isoLocale(new Date()),
+    rilevanza:["alta","media","bassa","nulla"].includes(v.rilevanza)?v.rilevanza:"media",
+    categorie:Array.isArray(v.categorie)?v.categorie:[],
+    sintesi:v.sintesi||"",
+    impatto:v.impatto||"",
+    opportunita:v.opportunita||null,
+    azione:v.azione||"",
+    inPratica:v.inPratica||v.azione||"",
+    esempio:v.esempio||null,
+    chi:v.chi||"",
+    verdetto:["subito","studio","preparare","sapere","ignorare"].includes(v.verdetto)?v.verdetto:"studio",
+    domande:Array.isArray(v.domande)?v.domande.filter(x=>typeof x==="string"&&x.trim()).slice(0,4):[],
+    stato:"da valutare",
+    scadenze:(Array.isArray(v.scadenze)?v.scadenze:[]).filter(s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s.data))
+      .map(s=>({data:s.data,descrizione:s.descrizione||"scadenza",tipo:"adempimento"}))
+  }));
+}
+let vociProposte=[];
+
+/* --- PDF: estrazione testo nel browser --- */
+async function estraiTestoPdf(file, avanzamento){
+  if(typeof pdfjsLib==="undefined") throw new Error("libreria PDF non caricata: controlla la connessione e ricarica la pagina");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const dati=new Uint8Array(await file.arrayBuffer());
+  const pdf=await pdfjsLib.getDocument({data:dati}).promise;
+  let testo="";
+  for(let n=1;n<=pdf.numPages;n++){
+    if(avanzamento) avanzamento(n,pdf.numPages);
+    const pagina=await pdf.getPage(n);
+    const contenuto=await pagina.getTextContent();
+    let riga="", ultimaY=null;
+    contenuto.items.forEach(el=>{
+      const y=Math.round(el.transform[5]);
+      if(ultimaY!==null && Math.abs(y-ultimaY)>3){ testo+=riga.trim()+"\n"; riga=""; }
+      riga+=el.str+(el.hasEOL?"\n":" ");
+      ultimaY=y;
+    });
+    testo+=riga.trim()+"\n\n";
+  }
+  return { testo: testo.replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim(), pagine: pdf.numPages };
+}
+
+/* --- PDF senza testo (scansione): lo legge direttamente il servizio --- */
+function fileInBase64(file){
+  return new Promise((ok,ko)=>{ const l=new FileReader(); l.onload=()=>ok(l.result.split(",")[1]); l.onerror=()=>ko(new Error("lettura del file non riuscita")); l.readAsDataURL(file); });
+}
+async function analizzaPdfDiretto(file,fonte){
+  const base64=await fileInBase64(file);
+  const istruzioni="Profilo dell'azienda: "+stato.profilo+"\n\n"+
+"Leggi questa circolare fiscale e individua le novità che contano per questa azienda. Rispondi SOLO con un array JSON valido, senza testo intorno e senza markdown, con al massimo 3 oggetti e sotto le 500 parole in totale, "+
+"con le chiavi: titolo, riferimento, sintesi (max 45 parole), impatto (max 35 parole), opportunita (o null), azione (max 25 parole), inPratica (una frase, max 20 parole), esempio (con numeri tondi, max 30 parole, o null), chi, "+
+"domande (array di 2-3 domande per il commercialista), verdetto (subito|studio|preparare|sapere|ignorare), rilevanza (alta|media|bassa|nulla), categorie (array), scadenze (array di {data:\"AAAA-MM-GG\", descrizione}, solo date scritte nel documento).";
+  const r=await chiamaModello({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:[
+      {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+      {type:"text",text:istruzioni}
+    ]}]});
+  if(!r.ok) throw new Error("il servizio di lettura ha risposto "+r.status+": "+await leggiErroreApi(r));
+  const dati=await r.json();
+  const testo=(dati.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("\n");
+  return normalizzaVoci(estraiJson(testo),fonte);
+}
+
+async function caricaPdf(file){
+  const esito=$("#esitoAnalisi"), st=$("#statoPdf");
+  if(!file) return;
+  if(!/\.pdf$/i.test(file.name) && file.type!=="application/pdf"){ esito.className="esito errore"; esito.textContent="Serve un file PDF."; return; }
+  if(file.size>25*1024*1024){ esito.className="esito errore"; esito.textContent="Il file supera i 25 MB: dividilo o incolla il testo."; return; }
+  esito.className="esito"; esito.textContent="";
+  if(!$("#fonteCircolare").value.trim()) $("#fonteCircolare").value=file.name.replace(/\.pdf$/i,"");
+  try{
+    st.textContent="Lettura di "+file.name+"…";
+    const {testo,pagine}=await estraiTestoPdf(file,(n,t)=>{ st.textContent="Lettura pagina "+n+" di "+t; });
+    if(testo.length>=400){
+      $("#testoCircolare").value=testo;
+      st.textContent=file.name+": "+pagine+" pagine, testo estratto. Controlla se vuoi e premi Analizza il testo.";
+    }else{
+      st.textContent=file.name+": il PDF non contiene testo selezionabile, lo leggo per intero.";
+      $("#btnAnalizza").disabled=true;
+      try{
+        vociProposte=await analizzaPdfDiretto(file,$("#fonteCircolare").value.trim());
+        mostraProposte();
+      }finally{ $("#btnAnalizza").disabled=false; }
+    }
+  }catch(e){
+    console.error(e);
+    st.textContent="oppure trascina qui il file";
+    esito.className="esito errore"; esito.textContent="Non sono riuscito a leggere il PDF: "+e.message+". Puoi incollare il testo a mano.";
+  }
+}
+function mostraProposte(){
+  const esito=$("#esitoAnalisi");
+  if(!vociProposte.length){
+    esito.className="esito errore";
+    esito.textContent="Non è uscita nessuna voce. Riprova con un testo più corto, oppure inserisci la voce a mano qui sotto.";
+    return;
+  }
+  esito.className="esito";
+  esito.textContent="Trovate "+vociProposte.length+" novità. Scegli quali archiviare.";
+  $("#anteprimaVoci").innerHTML='<div class="anteprima"><h4 style="margin:0 0 8px">Proposte di archiviazione</h4>'+
+    vociProposte.map((v,i)=>'<label><input type="checkbox" data-p="'+i+'"'+(v.rilevanza==="nulla"?"":" checked")+'>'+
+      '<span><span class="verdetto '+v.verdetto+'">'+(VERDETTI[v.verdetto]||VERDETTI.sapere).etichetta+"</span> <b>"+esc(v.titolo)+"</b><br>"+
+      esc(v.inPratica)+(v.esempio?'<br><i style="color:var(--grigio)">Per esempio: '+esc(v.esempio)+"</i>":"")+
+      (v.scadenze.length?"<br><i>scadenze: "+v.scadenze.map(s=>dataEstesa(s.data)).join(", ")+"</i>":"")+"</span></label>").join("")+
+    '<div class="azioni-riga"><button class="bottone oro" id="btnConferma">Archivia le voci scelte</button></div></div>';
+  $("#btnConferma").onclick=async()=>{
+    const scelte=Array.from(document.querySelectorAll("[data-p]")).filter(c=>c.checked).map(c=>vociProposte[+c.dataset.p]);
+    stato.voci=scelte.concat(stato.voci);
+    await salva(); ridisegnaTutto();
+    $("#anteprimaVoci").innerHTML=""; $("#testoCircolare").value=""; $("#statoPdf").textContent="oppure trascina qui il file";
+    esito.textContent="Archiviate "+scelte.length+" voci. Le trovi nell'archivio e nel cruscotto.";
+  };
+}
+
+async function analizzaCircolare(){
+  const testo=$("#testoCircolare").value.trim();
+  const fonte=$("#fonteCircolare").value.trim();
+  const esito=$("#esitoAnalisi"), btn=$("#btnAnalizza");
+  $("#anteprimaVoci").innerHTML=""; vociProposte=[];
+  if(testo.length<200){ esito.className="esito errore"; esito.textContent="Serve più testo: carica il PDF o incolla almeno una pagina della circolare."; return; }
+  const pezzi=spezza(testo,7000).slice(0,18);
+  const errori=[];
+  btn.disabled=true; esito.className="esito";
+  try{
+    for(let i=0;i<pezzi.length;i++){
+      esito.textContent="Lettura in corso… blocco "+(i+1)+" di "+pezzi.length+(vociProposte.length?" · "+vociProposte.length+" voci trovate finora":"");
+      try{ vociProposte=vociProposte.concat(await analizzaPezzo(pezzi[i],fonte)); }
+      catch(e){ console.error("blocco",i+1,e); errori.push("blocco "+(i+1)+": "+e.message); if(/negato|non raggiunge/.test(e.message)) break; }
+    }
+    mostraProposte();
+    if(!vociProposte.length && errori.length){
+      esito.className="esito errore";
+      esito.textContent="Lettura non riuscita. "+errori[0]+(errori.length>1?" (e altri "+(errori.length-1)+" blocchi)":"")+". Se il problema persiste incolla una parte più corta del testo o inserisci la voce a mano.";
+    }else if(errori.length){
+      esito.textContent+=" Attenzione: "+errori.length+" blocchi su "+pezzi.length+" non sono stati letti ("+errori[0]+").";
+    }
+  }finally{ btn.disabled=false; }
+}
+
+/* ============================================================
+   7. AVVIO
+   ============================================================ */
+async function avvia(){
+  if(FIREBASE_ATTIVO){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db=firebase.database();
+    await attendiAccesso();
+  }
+  const salvato=await leggiMemoria();
+  if(FIREBASE_ATTIVO && salvato){ stato={...stato,...salvato}; aggiornaUltimo(); }
+  if(salvato){ stato={...stato,...salvato}; }
+  if(!stato.voci) stato.voci=[];
+  if(!stato.note) stato.note={};
+  if(!stato.fatte) stato.fatte={};
+  if(!stato.profilo || (stato.profiloVersione||1)<PROFILO_VERSIONE){ stato.profilo=PROFILO_DEFAULT; stato.profiloVersione=PROFILO_VERSIONE; }
+  unisciBase();
+  completaVoci();
+  if(memoriaAttiva) await salva();
+  if(FIREBASE_ATTIVO) ascoltaRemoto();
+
+  $("#dataOggi").textContent="Oggi è "+dataEstesa(isoLocale(OGGI));
+  $("#giorniPreavviso").value=stato.preavviso;
+  $("#profiloAzienda").value=stato.profilo;
+  stato.lettera={...LETTERA_DEFAULT,...(stato.lettera||{})};
+  stato.lettura={proxy:"",chiave:"",...(stato.lettura||{})};
+  $("#lettProxy").value=stato.lettura.proxy||""; $("#lettChiave").value=stato.lettura.chiave||"";
+  $("#btnSalvaLettura").onclick=async()=>{
+    stato.lettura={proxy:$("#lettProxy").value.trim(),chiave:$("#lettChiave").value.trim()};
+    await salva(); $("#esitoLettura").className="esito"; $("#esitoLettura").textContent="Salvato.";
+  };
+  $("#btnProvaLettura").onclick=async()=>{
+    stato.lettura={proxy:$("#lettProxy").value.trim(),chiave:$("#lettChiave").value.trim()}; await salva();
+    const es=$("#esitoLettura"); es.className="esito"; es.textContent="Provo…";
+    try{
+      const r=await chiamaModello({model:"claude-sonnet-4-6",max_tokens:20,messages:[{role:"user",content:"Rispondi solo con la parola: ok"}]});
+      if(!r.ok) throw new Error("risposta "+r.status+": "+await leggiErroreApi(r));
+      const d=await r.json(); const t=(d.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+      es.textContent="Collegamento funzionante ("+(stato.lettura.proxy?"proxy":stato.lettura.chiave?"chiave API":"Claude")+"): risposta \""+t.trim()+"\".";
+    }catch(e){ es.className="esito errore"; es.textContent="Collegamento non riuscito: "+e.message; }
+  };
+  const campiL={lAzienda:"azienda",lIndirizzo:"indirizzo",lReferente:"referente",lEmail:"email",lTelefono:"telefono",lStudio:"studio",lEmailStudio:"emailStudio"};
+  Object.keys(campiL).forEach(id=>$("#"+id).value=stato.lettera[campiL[id]]||"");
+  $("#btnSalvaLettera").onclick=async()=>{
+    Object.keys(campiL).forEach(id=>stato.lettera[campiL[id]]=$("#"+id).value.trim());
+    if(!stato.lettera.studio) stato.lettera.studio="Spett.le Studio";
+    await salva(); $("#esitoImpostazioni").textContent="Dati per le lettere salvati.";
+  };
+  if(!memoriaAttiva){
+    const a=document.createElement("div");
+    a.className="avviso-memoria";
+    a.textContent="Questa copia non salva i dati fra una sessione e l'altra: usa Esporta archivio prima di chiudere.";
+    document.querySelector("main").prepend(a);
+  }else if(!FIREBASE_ATTIVO && !dentroClaude){
+    const a=document.createElement("div");
+    a.className="avviso-memoria";
+    a.textContent=(typeof firebase!=="undefined" ? "Configurazione Firebase non compilata: " : "")+"l'archivio è salvato solo in questo browser. Per leggere le circolari in automatico imposta il proxy o la chiave API in Impostazioni.";
+    document.querySelector("main").prepend(a);
+  }
+  ridisegnaTutto();
+
+  $$("nav button").forEach(b=>b.onclick=()=>mostraVista(b.dataset.vista));
+  $("#cerca").oninput=disegnaArchivio;
+  $("#fVerdetto").onchange=disegnaArchivio;
+  $("#fRilevanza").onchange=disegnaArchivio;
+  $("#fCategoria").onchange=disegnaArchivio;
+  $("#fStato").onchange=disegnaArchivio;
+  $("#mostraFatte").onchange=disegnaScadenzario;
+  $("#btnIcs").onclick=()=>scarica("scadenze-fiscali-saslong.ics",generaIcs(),"text/calendar");
+  $("#btnRiepilogo").onclick=async()=>{
+    const t=riepilogoTesto();
+    try{ await navigator.clipboard.writeText(t); $("#btnRiepilogo").textContent="Riepilogo copiato"; setTimeout(()=>$("#btnRiepilogo").textContent="Copia riepilogo per il commercialista",2500); }
+    catch(e){ scarica("riepilogo-fiscale.txt",t,"text/plain"); }
+  };
+  $("#btnAnalizza").onclick=analizzaCircolare;
+  $("#btnScegliPdf").onclick=()=>$("#filePdf").click();
+  $("#filePdf").onchange=e=>{ caricaPdf(e.target.files[0]); e.target.value=""; };
+  const zona=$("#zonaPdf");
+  ["dragenter","dragover"].forEach(ev=>zona.addEventListener(ev,e=>{ e.preventDefault(); zona.classList.add("sopra"); }));
+  ["dragleave","drop"].forEach(ev=>zona.addEventListener(ev,e=>{ e.preventDefault(); zona.classList.remove("sopra"); }));
+  zona.addEventListener("drop",e=>{ const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) caricaPdf(f); });
+  $("#btnSalvaPreavviso").onclick=async()=>{
+    const g=parseInt($("#giorniPreavviso").value,10);
+    if(g>0&&g<=180){ stato.preavviso=g; await salva(); ridisegnaTutto(); $("#esitoImpostazioni").textContent="Preavviso impostato a "+g+" giorni."; }
+    else $("#esitoImpostazioni").textContent="Metti un numero fra 1 e 180.";
+  };
+  $("#btnSalvaProfilo").onclick=async()=>{ stato.profilo=$("#profiloAzienda").value.trim()||PROFILO_DEFAULT; stato.profiloVersione=PROFILO_VERSIONE; await salva(); $("#esitoImpostazioni").textContent="Profilo salvato."; };
+  $("#btnEsporta").onclick=()=>scarica("radar-fiscale-alpstay.json",JSON.stringify(stato,null,2),"application/json");
+  $("#fileImporta").onchange=e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const lettore=new FileReader();
+    lettore.onload=async()=>{
+      try{
+        const d=JSON.parse(lettore.result);
+        if(!Array.isArray(d.voci)) throw new Error();
+        stato={...stato,...d}; unisciBase(); completaVoci(); await salva(); ridisegnaTutto();
+        $("#esitoImpostazioni").textContent="Archivio importato: "+stato.voci.length+" voci.";
+      }catch(err){ $("#esitoImpostazioni").className="esito errore"; $("#esitoImpostazioni").textContent="Il file non è un archivio valido."; }
+    };
+    lettore.readAsText(f);
+  };
+  $("#btnRipristina").onclick=async()=>{
+    stato.voci=JSON.parse(JSON.stringify(VOCI_BASE)); stato.fatte={}; stato.note={};
+    await salva(); ridisegnaTutto(); $("#esitoImpostazioni").textContent="Voci di partenza ripristinate.";
+  };
+  $("#btnSalvaManuale").onclick=async()=>{
+    const t=$("#mTitolo").value.trim();
+    if(!t){ $("#esitoManuale").className="esito errore"; $("#esitoManuale").textContent="Serve almeno il titolo."; return; }
+    const sc=[]; const d=$("#mData1").value;
+    if(d) sc.push({data:d,descrizione:$("#mDesc1").value.trim()||"scadenza",tipo:"adempimento"});
+    stato.voci.unshift({
+      id:"man-"+Math.random().toString(36).slice(2,9),
+      titolo:t, riferimento:$("#mRif").value.trim(), fonte:$("#mFonte").value.trim()||"Inserimento manuale",
+      dataFonte:isoLocale(new Date()),
+      rilevanza:$("#mRilevanza").value,
+      categorie:$("#mCategorie").value.split(",").map(x=>x.trim()).filter(Boolean),
+      sintesi:$("#mSintesi").value.trim(), impatto:$("#mImpatto").value.trim(),
+      opportunita:$("#mOpportunita").value.trim()||null, azione:$("#mAzione").value.trim(),
+      inPratica:$("#mInPratica").value.trim()||$("#mAzione").value.trim(),
+      esempio:$("#mEsempio").value.trim()||null,
+      chi:$("#mChi").value.trim(),
+      verdetto:$("#mVerdetto").value,
+      stato:"da valutare", scadenze:sc
+    });
+    await salva(); ridisegnaTutto();
+    ["mTitolo","mRif","mFonte","mCategorie","mSintesi","mImpatto","mOpportunita","mAzione","mInPratica","mEsempio","mChi","mData1","mDesc1"].forEach(i=>$("#"+i).value="");
+    $("#esitoManuale").className="esito"; $("#esitoManuale").textContent="Voce aggiunta all'archivio.";
+  };
+}
+avvia();
+</script>
+</body>
+</html>
