@@ -14,17 +14,17 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 /* ============================================================
-   CONFIGURAZIONE FIREBASE — progetto "ordinibestellungen"
+   CONFIGURAZIONE FIREBASE — progetto "radarfiscale"
    Copia i valori da: console Firebase > Impostazioni progetto >
    Le tue app > app web > "Configurazione SDK" (npm/config).
    Se apiKey resta vuota la pagina lavora con la memoria del browser.
    ============================================================ */
 const FIREBASE_CONFIG = {
   apiKey: "",
-  authDomain: "ordinibestellungen.firebaseapp.com",
-  databaseURL: "https://ordinibestellungen-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "ordinibestellungen",
-  storageBucket: "ordinibestellungen.appspot.com",
+  authDomain: "radarfiscale.firebaseapp.com",
+  databaseURL: "https://radarfiscale-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "radarfiscale",
+  storageBucket: "radarfiscale.appspot.com",
   messagingSenderId: "",
   appId: ""
 };
@@ -1016,8 +1016,9 @@ function completaVoci(){
    2. MEMORIA
    ============================================================ */
 const CHIAVE = "alpstay-radar-fiscale-v1";
+const PROXY_DEFAULT = "https://radarfiscale.ezioprinoth.workers.dev";
 const LETTERA_DEFAULT = { azienda:"Saslong Srl – Smart Hotel Saslong", indirizzo:"Via Rezia 308, Ortisei (BZ)", referente:"", email:"info@saslong.eu", telefono:"+39 0471 774444", studio:"Spett.le Studio", emailStudio:"" };
-let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:"",chiave:""} };
+let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:PROXY_DEFAULT,chiave:""} };
 let memoriaAttiva = true;
 // Ordine: Firebase (archivio condiviso) > window.storage dentro Claude > memoria del browser.
 const dentroClaude = typeof window.storage !== "undefined";
@@ -1790,6 +1791,7 @@ async function avvia(){
   $("#profiloAzienda").value=stato.profilo;
   stato.lettera={...LETTERA_DEFAULT,...(stato.lettera||{})};
   stato.lettura={proxy:"",chiave:"",...(stato.lettura||{})};
+  if(!stato.lettura.proxy && !stato.lettura.chiave) stato.lettura.proxy=PROXY_DEFAULT;
   $("#lettProxy").value=stato.lettura.proxy||""; $("#lettChiave").value=stato.lettura.chiave||"";
   $("#btnSalvaLettura").onclick=async()=>{
     stato.lettura={proxy:$("#lettProxy").value.trim(),chiave:$("#lettChiave").value.trim()};
