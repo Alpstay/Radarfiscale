@@ -186,6 +186,17 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
   .vuoto{color:var(--grigio);font-size:15px;padding:24px 0;max-width:60ch}
 
   footer{border-top:1px solid var(--linea);padding:18px 0 40px;color:var(--grigio);font-size:13px}
+  .progetto{border:1px solid var(--linea);border-left:5px solid var(--oro);padding:16px 18px;margin-bottom:14px;background:var(--bianco)}
+  .progetto h3{margin:0;font-size:20px}
+  .progetto .meta{font-size:13.5px;color:var(--grigio);margin:4px 0 8px}
+  .progetto .stato-p{display:inline-block;font-size:12px;padding:2px 9px;border:1px solid var(--oro);color:var(--oro);border-radius:2px;margin-left:8px;vertical-align:middle}
+  .progetto ul{margin:4px 0 0;padding-left:18px;font-size:14.5px}
+  .progetto li{margin:3px 0}
+  .risposta-mentor{border:1px solid var(--oro);padding:16px 18px;margin-top:14px;background:var(--bianco)}
+  .risposta-mentor h4{margin:12px 0 4px;font-size:13px;color:var(--oro);font-weight:700}
+  .risposta-mentor p.breve{font-size:17px;margin:0;max-width:70ch}
+  .risposta-mentor ul{margin:2px 0 0;padding-left:18px;font-size:14.5px}
+  .avvertenza{font-size:12.5px;color:var(--grigio);border-top:1px dotted var(--linea);margin-top:12px;padding-top:8px}
   #accesso{position:fixed;inset:0;background:var(--bianco);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
   #accesso[hidden]{display:none}
   .scheda-accesso{width:100%;max-width:380px;border:1px solid var(--linea);padding:28px;background:var(--carta)}
@@ -219,6 +230,7 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
     </div>
     <nav>
       <button data-vista="cruscotto" class="attivo">Cosa scade adesso<span class="pallino" id="badgeAllerte" hidden></span></button>
+      <button data-vista="progetti">Progetti e mentor</button>
       <button data-vista="scadenzario">Scadenzario</button>
       <button data-vista="archivio">Archivio</button>
       <button data-vista="aggiungi">Nuova circolare</button>
@@ -249,6 +261,37 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
     <h2 class="titolo-sez">Le mosse per la Saslong</h2>
     <p class="intro-sez">Ogni novità ridotta a una frase: che cosa facciamo, chi se ne occupa e un esempio con i numeri. Quando una mossa è finita, chiudila e sparisce da qui.</p>
     <div id="listaMosse"></div>
+  </section>
+
+  <!-- ============ PROGETTI E MENTOR ============ -->
+  <section id="vista-progetti" hidden>
+    <h2 class="titolo-sez">Chiedi al mentor</h2>
+    <p class="intro-sez">Scrivi come parleresti a un consulente: un investimento, un'assunzione, un contratto, un dubbio. Risponde con il profilo della Saslong, l'archivio delle norme e i progetti in corso come contesto, e finisce sempre con le domande da fare allo studio.</p>
+    <div class="modulo">
+      <textarea class="incolla" id="domandaMentor" style="min-height:90px" placeholder="Es. Vorremmo comprare un furgone elettrico da 60.000 euro in primavera: conviene? Che cosa dobbiamo sapere prima di ordinarlo?"></textarea>
+      <div class="azioni-riga"><button class="bottone oro" id="btnMentor">Chiedi al mentor</button><button class="bottone piccolo" id="btnMentorReset">Nuova conversazione</button><span class="esito" id="esitoMentor"></span></div>
+      <div id="rispostaMentor"></div>
+    </div>
+
+    <h2 class="titolo-sez">Progetti della Saslong</h2>
+    <p class="intro-sez">Quello che state per fare, con la lettura fiscale già pronta. Ogni circolare che carichi viene confrontata con questi progetti, e il briefing manda allo studio il quadro dei prossimi mesi.</p>
+    <div class="azioni-riga">
+      <button class="bottone oro" id="btnBriefing">Briefing per lo studio (PDF)</button>
+      <button class="bottone" id="btnNuovoProgetto">Aggiungi un progetto</button>
+    </div>
+    <div class="modulo" id="moduloProgetto" hidden style="margin-top:14px">
+      <h3>Nuovo progetto</h3>
+      <div class="griglia">
+        <div class="larga"><label for="pTitolo">Titolo</label><input id="pTitolo" placeholder="Es. Nuova cucina all'Acadia"></div>
+        <div class="larga"><label for="pDescrizione">Di che cosa si tratta</label><textarea id="pDescrizione" rows="2"></textarea></div>
+        <div><label for="pImporto">Importo stimato (euro)</label><input id="pImporto" type="number" min="0" step="1000"></div>
+        <div><label for="pStato">Stato</label><select id="pStato"><option value="idea">Idea</option><option value="deciso">Deciso</option><option value="in corso" selected>In corso</option><option value="sospeso">Sospeso</option></select></div>
+        <div><label for="pInizio">Inizio previsto</label><input id="pInizio" type="date"></div>
+        <div><label for="pFine">Fine prevista</label><input id="pFine" type="date"></div>
+      </div>
+      <div class="azioni-riga"><button class="bottone oro" id="btnSalvaProgetto">Salva progetto</button><button class="bottone piccolo" id="btnAnnullaProgetto">Annulla</button><span class="esito" id="esitoProgetto"></span></div>
+    </div>
+    <div id="listaProgetti" style="margin-top:18px"></div>
   </section>
 
   <!-- ============ SCADENZARIO ============ -->
@@ -391,25 +434,25 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
 /* ============================================================
    1. DATI DI PARTENZA — estratti dalla circolare di settembre 2026
    ============================================================ */
-const PROFILO_VERSIONE = 2;
+const PROFILO_VERSIONE = 4;
 const PROFILO_DEFAULT = `CHI SIAMO
-Saslong Srl - Smart Hotel Saslong, Via Rezia 308, Ortisei (BZ), Val Gardena, Alto Adige. Struttura del gruppo AlpStay. Albergo con self check-in tramite chiosco. Società a responsabilità limitata a ristretta base familiare, immobile strumentale di proprietà con ammortamenti rilevanti. Personale dipendente fisso più stagionale (CCNL Turismo), due stagioni (inverno e estate). IVA mensile, soggetto ISA. Acquisti anche da fornitori austriaci e tedeschi, trasferte e fiere all'estero. Possibili auto aziendali in uso promiscuo. Sponsorizzazioni di associazioni sportive locali. Sede in Provincia autonoma di Bolzano: valgono anche le norme provinciali (IRAP provinciale, imposta di soggiorno, contributi e bandi della Provincia).
+Saslong Srl - Smart Hotel Saslong, Via Rezia 308, Ortisei (BZ), Val Gardena, Alto Adige. Fa parte del gruppo AlpStay, che gestisce tre alberghi, tutti ristrutturati, in ottimo stato e con cantieri di rinnovo continui. La Saslong Srl è PROPRIETARIA dello Smart Hotel Saslong (costruito nel 2011) e dell'Hotel Acadia (2001). L'Hotel Hartmann (1961) è di proprietà di terzi, uno dei quali è amministratore della Saslong Srl: la società lo gestisce in forza di un contratto (locazione o affitto d'azienda) con parti correlate. Su questo rapporto contano: canone a valore di mercato, delibera dei soci e conflitto d'interessi dell'amministratore (art. 2475-ter c.c.), trattamento delle spese sostenute dalla società su un immobile altrui (spese su beni di terzi), imposta di registro del contratto. Società a responsabilità limitata a ristretta base familiare, in contabilità ordinaria, IVA mensile. Ricavi intorno a 5,5-6 milioni di euro l'anno: SOPRA la soglia ISA di 5.164.569 euro, quindi niente indici sintetici, niente concordato preventivo biennale, niente premi ISA (visto, rimborsi). Esercizio sociale non coincidente con l'anno solare: chiude il 31 ottobre; le imposte sui redditi seguono l'esercizio, l'IVA l'anno solare. Fine anno a credito o a debito IVA a seconda degli investimenti. Rivalutazione dei beni d'impresa fatta in passato, con criterio prudente. Contributi Covid ricevuti per circa 100.000 euro. Personale: 10 dipendenti fissi e circa 20 stagionali per 9 mesi (CCNL Turismo). Nessun piano welfare in essere. Auto: Porsche, Mercedes e BMW usate anche privatamente (chiarire se da soci, amministratori o dipendenti), due furgoni e una Fiat Panda per i collaboratori. Acquisti all'estero quasi nulli. Sponsorizzazioni a associazioni sportive locali per circa 3.000 euro l'anno. Commercialista: Studio Alber Flaim, Bolzano. Sede in Provincia autonoma di Bolzano: valgono anche le norme provinciali (IRAP provinciale ridotta, imposta di soggiorno, contributi e bandi della Provincia).
 
 COME GIUDICARE UNA NOVITÀ
-Conta solo l'effetto pratico sui conti e sull'operatività dell'albergo: cassa, imposte, rischio in caso di verifica, adempimenti da fare in ufficio. Niente teoria. Per ogni novità dire in una frase che cosa facciamo, chi lo fa e con un esempio in euro calato su un albergo. Se c'è una scadenza entro 60 giorni il verdetto è "subito"; se serve una decisione o un calcolo dello studio è "studio"; se è lavoro d'ufficio senza fretta è "preparare"; se non c'è nulla da fare ma può servire in un controllo è "sapere"; se non ci riguarda è "ignorare".
+Conta solo l'effetto pratico sui conti e sull'operatività degli alberghi: cassa, imposte, rischio in caso di verifica, adempimenti da fare in ufficio. Niente teoria. Per ogni novità dire in una frase che cosa facciamo, chi lo fa e con un esempio in euro calato sui numeri della Saslong (6 milioni di ricavi, 30 persone, tre alberghi). Se c'è una scadenza entro 60 giorni il verdetto è "subito"; se serve una decisione o un calcolo dello studio è "studio"; se è lavoro d'ufficio senza fretta è "preparare"; se non c'è nulla da fare ma può servire in un controllo è "sapere"; se non ci riguarda è "ignorare". Tutto ciò che riguarda ISA, concordato preventivo biennale e regime premiale ISA è "ignorare", salvo cambi di soglia.
 
 AREE DA TENERE D'OCCHIO, IN ORDINE DI PRIORITÀ
-1. Concordato preventivo biennale, ISA e compensazioni. Siamo sotto la lente dell'Agenzia: ogni modifica al CPB, alle soglie del visto di conformità per compensare o chiedere a rimborso l'IVA, ai punteggi di affidabilità e ai termini di accertamento ha priorità massima.
-2. Immobile e ammortamenti. Rivalutazione o riallineamento dei beni d'impresa, limiti alla deducibilità di ammortamenti e quota terreno (IRES e IRAP), assegnazione agevolata ai soci, IMU e rendite catastali, incentivi per riqualificazione energetica e digitale delle strutture ricettive (Transizione 5.0, crediti d'imposta per il turismo, bandi provinciali).
-3. Personale e costo del lavoro. Rinnovi del CCNL Turismo, sgravi e decontribuzione per assunzioni stagionali e giovani, welfare aziendale e fringe benefit (soglie di esenzione, auto in uso promiscuo, alloggio e vitto ai dipendenti), lavoro extra e chiamata, controlli ispettivi, Uniemens e comunicazioni obbligatorie.
-4. IVA e fatturazione. Detrazione e registrazione delle fatture a cavallo d'anno, note di credito, rimborso dell'IVA pagata in altri Stati UE (scadenza annuale 30 settembre), reverse charge su acquisti da fornitori esteri, fatturazione elettronica transfrontaliera (ViDA), corrispettivi telematici, aliquota IVA su alloggio, ristorazione e servizi accessori, imposta di bollo sulle fatture.
-5. Trasferte, rappresentanza e sponsorizzazioni. Deducibilità di trasferte e fiere all'estero, spese di rappresentanza, sponsorizzazioni alle associazioni sportive dilettantistiche: area facilmente contestabile, il Fisco tende a riqualificarle come rappresentanza; seguire sentenze di Cassazione sull'inerenza e i limiti di deducibilità.
-6. Ospiti e obblighi di settore. Imposta di soggiorno (norme provinciali e comunali), identificazione degli ospiti e comunicazione alloggiati con self check-in, codice identificativo nazionale (CIN), privacy e conservazione dei documenti, obblighi antincendio e sicurezza, classificazione alberghiera.
-7. Accertamento e difesa. Antieconomicità e prezzi fuori listino (gruppi, tour operator, bassa stagione), presunzioni sugli utili delle società a ristretta base, termini di accertamento, cassetto fiscale e atti notificati per via telematica, ravvedimento operoso.
-8. Società e governance. Delibere necessarie per operazioni straordinarie (affitto o cessione d'azienda, gestione affidata a terzi), rapporti con le altre società del gruppo AlpStay, distribuzione utili e tassazione dei dividendi dei soci.
+1. Immobili, ristrutturazioni e ammortamenti. Due alberghi di proprietà (Saslong, Acadia) e uno in uso da terzi correlati (Hartmann), con lavori continui: deducibilità di ammortamenti, manutenzioni straordinarie e quota terreno (IRES e IRAP), rivalutazione e riallineamento, assegnazione agevolata ai soci, IMU e rendite catastali, incentivi per riqualificazione energetica e digitale (Transizione 5.0, Conto Termico, crediti d'imposta turismo, bandi provinciali, INAIL).
+2. Personale e costo del lavoro. 30 persone di cui 20 stagionali: rinnovi CCNL Turismo, sgravi per stagionali e giovani, welfare aziendale (assente, da costruire), fringe benefit e auto in uso promiscuo, alloggio e vitto ai dipendenti, controlli ispettivi, Uniemens.
+3. IVA e cassa. Credito IVA negli anni di investimento (rimborso per aliquota media: vendite al 10%, acquisti al 22%), compensazioni e blocchi, detrazione delle fatture a cavallo d'anno e di fine stagione, note di credito, corrispettivi telematici, aliquote su alloggio e ristorazione, imposta di bollo.
+4. Auto e sponsorizzazioni. Tre auto di valore usate privatamente: fringe benefit, deducibilità, IVA, oppure beni ai soci; sponsorizzazioni allo sport locale: inerenza e distinzione dalla rappresentanza.
+5. Accertamento e difesa. Antieconomicità e prezzi fuori listino (gruppi, tour operator, bassa stagione), presunzioni sugli utili delle società a ristretta base, termini di accertamento, cassetto fiscale, ravvedimento.
+6. Ospiti e obblighi di settore. Imposta di soggiorno provinciale e comunale, identificazione ospiti con self check-in e comunicazione alloggiati, CIN, privacy, antincendio e sicurezza, classificazione alberghiera.
+7. Società, governance e parti correlate. Contratto e canone dell'Hartmann con proprietari di cui uno è amministratore; delibere per operazioni straordinarie (affitto o cessione d'azienda, gestione a terzi); rapporti fra le società del gruppo AlpStay; distribuzione utili e dividendi ai soci.
+8. Esercizio al 31 ottobre. Ogni scadenza legata al periodo d'imposta (dichiarazione dei redditi, acconti, stampa registri, bollo) va ricalcolata sulla chiusura al 31 ottobre, non sul 31 dicembre.
 
 CHE COSA SCARTARE (verdetto "ignorare")
-Norme che riguardano solo: professionisti e lavoro autonomo, persone fisiche non imprenditori, autotrasporto, agricoltura, banche e assicurazioni, trust e successioni, partecipazioni in Paesi a fiscalità privilegiata, fondi pensione, enti sportivi e del terzo settore (salvo il riflesso sulle nostre sponsorizzazioni), grandi imprese e gruppi multinazionali, settori produttivi diversi dal turismo.`;
+ISA, concordato preventivo biennale e regime premiale ISA (siamo sopra soglia); regimi per piccole imprese (semplificata, IVA trimestrale, IVA per cassa, forfetari, franchigia UE); norme che riguardano solo professionisti, persone fisiche non imprenditori, autotrasporto, agricoltura, banche e assicurazioni, trust e successioni, partecipazioni in Paesi a fiscalità privilegiata, fondi pensione, enti sportivi e del terzo settore (salvo il riflesso sulle nostre sponsorizzazioni), gruppi multinazionali, settori diversi dal turismo.`;
 
 const FONTE_G26 = "Circolare mensile per l'impresa, gennaio 2026";
 const VOCI_BASE = [
@@ -635,6 +678,20 @@ const VOCI_BASE = [
   scadenze:[]
 },
 
+/* ---------- Nota interna: rapporti con parti correlate ---------- */
+{
+  id:"hartmann-parti-correlate", titolo:"Hotel Hartmann: contratto e lavori con proprietari che sono anche amministratori",
+  riferimento:"Art. 2475-ter c.c. (conflitto d'interessi) — art. 9 e art. 108 TUIR (valore normale, spese su beni di terzi) — D.P.R. 131/1986 (registro)",
+  fonte:"Nota interna Radar fiscale, settembre 2026", dataFonte:"2026-09-08",
+  rilevanza:"alta", categorie:["Societario","Immobili","Accertamento","Parti correlate"],
+  sintesi:"L'Hartmann è di proprietà di terzi, uno dei quali è amministratore della Saslong Srl. Un contratto fra la società e un suo amministratore è un'operazione con parte correlata: il canone deve essere a valore di mercato, il contratto va autorizzato dai soci con verbale che dia conto dell'interesse dell'amministratore, e i lavori pagati dalla Saslong sull'immobile altrui seguono le regole delle spese su beni di terzi (deduzione sulla durata del contratto) e devono essere previsti dal contratto stesso.",
+  impatto:"È il punto che un verificatore guarda per primo in una Srl familiare: un canone troppo alto sposta utili ai proprietari senza tassazione in società, uno troppo basso è un vantaggio all'amministratore; lavori non previsti dal contratto rischiano di essere indeducibili o considerati liberalità ai proprietari.",
+  opportunita:"Con contratto registrato, canone perizato e verbale dei soci, il rapporto diventa solido e i lavori sull'Hartmann restano deducibili senza sorprese.",
+  azione:"Farsi dare dallo studio una verifica del contratto dell'Hartmann: canone e sua congruità, durata, clausole sui lavori a carico della società, registrazione, delibera dei soci.",
+  stato:"da valutare",
+  scadenze:[]
+},
+
 /* ---------- Circolare di gennaio 2026 ---------- */
 {
   id:"g26-rimborso-iva-annuale", titolo:"Rimborso del credito IVA annuale: l'albergo rientra nel caso dell'aliquota media",
@@ -842,17 +899,17 @@ const MOSSE = {
   inPratica:"Controllare che le dichiarazioni IMU degli ultimi anni siano state presentate: adesso c'è più spazio per rimediare.",
   esempio:"Se il Comune ha già mandato un questionario, prima il ravvedimento era bloccato e si andava all'accertamento; ora si può ancora sanare spontaneamente fino alla notifica dell'atto."},
 "antieconomicita":{ verdetto:"sapere", chi:"Ufficio, archivio contratti",
-  inPratica:"Tenere nel fascicolo il contratto dietro ogni prezzo fuori listino: da solo lo sconto non è più contestabile.",
-  esempio:"Camera a 60 euro a un tour operator quando il listino è 130: serve l'allotment firmato, ma la differenza di prezzo da sola non regge un accertamento."},
+  inPratica:"Tenere nel fascicolo il contratto dietro ogni prezzo fuori listino, e per l'Hartmann la prova che il canone verso i proprietari è a valore di mercato.",
+  esempio:"Camera a 60 euro a un tour operator con listino 130: la differenza da sola non regge un accertamento, serve l'allotment firmato. Un canone dell'Hartmann fuori mercato verso un proprietario che è anche amministratore, invece, è l'elemento in più che l'Ufficio cerca."},
 "utili-ristretta-base":{ verdetto:"sapere", chi:"Commercialista",
   inPratica:"Una ripresa fiscale sulla società non diventa più in automatico reddito tassato in capo ai soci.",
   esempio:"Costo di 20.000 euro ritenuto non inerente e ripreso a tassazione: non si presume più distribuito ai soci, perché non è né ricavo in nero né fattura falsa."},
 "componenti-pluriennali":{ verdetto:"preparare", chi:"Ufficio, archivio cespiti",
   inPratica:"Conservare fatture e contratti dei lavori per tutto il piano di ammortamento, non solo cinque anni.",
   esempio:"Rifacimento camere da 300.000 euro ammortizzato al 3%: la documentazione va tenuta finché si deduce l'ultima quota."},
-"cessione-azienda-delibera":{ verdetto:"sapere", chi:"Direzione e soci",
-  inPratica:"Affitto o cessione della gestione dell'albergo: prima il verbale dei soci, poi la firma.",
-  esempio:"Un contratto di affitto d'azienda firmato dal solo amministratore, senza assemblea, sarebbe inefficace anche verso chi compra dopo."},
+"cessione-azienda-delibera":{ verdetto:"preparare", chi:"Direzione e soci",
+  inPratica:"Affitto o cessione della gestione: prima il verbale dei soci, poi la firma. Vale anche per il contratto dell'Hartmann, dove un proprietario è amministratore della Saslong.",
+  esempio:"Rinnovo del contratto dell'Hartmann firmato dall'amministratore che ne è anche proprietario, senza delibera dei soci: conflitto d'interessi e atto attaccabile. Con il verbale che ne dà conto e un canone a valore di mercato, il rapporto è difendibile."},
 "cassetto-fiscale":{ verdetto:"preparare", chi:"Ufficio",
   inPratica:"Mettere in agenda dieci minuti il primo lunedì del mese per aprire il cassetto fiscale.",
   esempio:"Un avviso di liquidazione lasciato lì oltre i termini diventa cartella con sanzione piena, mentre pagato nei termini la sanzione resta ridotta."},
@@ -994,7 +1051,132 @@ const DOMANDE = {
 "g26-adempimenti-gen-feb-2026":[
   "Per il ciclo di gennaio 2027, entro che data volete da noi la contabilità di dicembre 2026?"]
 };
-VOCI_BASE.forEach(v=>{ const m=MOSSE[v.id]; if(m) Object.assign(v,m); if(DOMANDE[v.id]) v.domande=DOMANDE[v.id]; });
+/* Personalizzazione sui numeri della Saslong (settembre 2026): ricavi 5,5-6 milioni, tre alberghi,
+   10 fissi + 20 stagionali, esercizio al 31 ottobre, fuori ISA, spese estere quasi nulle. */
+const MOSSE_VERSIONE = 3;
+const MOSSE_PERSONALI = {
+"iva-estera-2025":{ verdetto:"sapere", chi:"Ufficio",
+  inPratica:"Spese estere quasi nulle: dieci minuti per controllare le fatture 2025 austriache o tedesche; sotto 50 euro di IVA la pratica non si fa.",
+  esempio:"Servono almeno 250 euro di acquisti in Austria per arrivare ai 50 euro di IVA minima. Con 2.000 euro di spese tornerebbero 400 euro: possibile, ma marginale."},
+"assegnazione-agevolata":{ verdetto:"studio", chi:"Soci con lo studio Alber Flaim",
+  inPratica:"Gli alberghi sono strumentali e restano fuori: conta solo se in Saslong Srl ci sono appartamenti, garage o terreni non usati per l'attività.",
+  esempio:"Garage con valore catastale 60.000 e costo fiscale 20.000: sostitutiva 8% su 40.000 = 3.200 euro, registro dimezzato, ipocatastali 200 euro l'una. Dal 1° ottobre lo stesso passaggio torna a tassazione piena."},
+"iva-detrazione-biennale":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"Con l'esercizio al 31 ottobre e tre alberghi in cantiere, le fatture che arrivano dopo la chiusura sono la regola: sezionale e IVA recuperata.",
+  esempio:"Su 200.000 euro di lavori fatturati a dicembre e ricevuti a gennaio l'IVA è 44.000 euro: prima rischiava di restare fuori dall'anno giusto, ora si recupera fino a due anni dopo."},
+"fringe-auto":{ verdetto:"studio", chi:"Ufficio, consulente del lavoro e studio",
+  inPratica:"Per Porsche, Mercedes e BMW chiarire chi le usa: se dipendenti o amministratori è fringe benefit, se soci senza rapporto di lavoro è tutt'altro regime. Furgoni e Panda dei collaboratori restano fuori.",
+  esempio:"Porsche con costo ACI intorno a 1,20 euro/km: 18.000 euro su 15.000 km, benefit 50% = 9.000 euro l'anno in busta paga; dal sesto anno di immatricolazione sale a 13.500. Con addebito dell'uso privato in fattura il benefit sparisce e l'IVA dell'auto si detrae per intero."},
+"welfare-familiari":{ verdetto:"studio", chi:"Consulente del lavoro",
+  inPratica:"Nessun piano welfare oggi: con 30 persone, di cui 20 stagionali da far tornare ogni anno, è la leva più economica per trattenere gente.",
+  esempio:"500 euro di welfare a testa per 30 persone = 15.000 euro l'anno, tutti netti in tasca allo staff. Lo stesso netto in busta paga costerebbe all'azienda quasi il doppio fra contributi e ritenute."},
+"cpb-rinnovo":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Con ricavi sopra 5,16 milioni la Saslong è fuori dagli ISA e quindi dal concordato: nessuna decisione da prendere.",
+  esempio:"La soglia ISA è 5.164.569 euro di ricavi: con 5,5-6 milioni non si applicano né il concordato né i premi per chi rinnova. Tornerebbe in gioco solo se un anno il fatturato scendesse sotto."},
+"scorporo-terreni-irap":{ verdetto:"studio", chi:"Studio Alber Flaim",
+  inPratica:"Saslong e Acadia sono di proprietà e ammortizzati: chiedere quanto vale la quota terreno esclusa dall'IRAP e se vale un'istanza di rimborso per gli anni aperti. L'Hartmann non c'entra, non è nostro.",
+  esempio:"Saslong (2011) e Acadia (2001) iscritti, ipotesi, per 5 milioni: quota terreno 20% = 1.000.000; ammortamento 3% su quella parte = 30.000 euro l'anno esclusi dalla base IRAP, circa 800 euro l'anno con l'aliquota ridotta dell'Alto Adige, per ogni anno ancora aperto."},
+"imu-novita":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"Saslong e Acadia in categoria D: verificare che le dichiarazioni IMU siano in ordine e che le rendite riflettano gli edifici come sono oggi. L'IMU dell'Hartmann la pagano i proprietari, salvo diverso accordo nel contratto.",
+  esempio:"Su una rendita rivista dopo una ristrutturazione, se il Comune non è stato informato, oggi si può ancora ravvedere spontaneamente anche dopo un questionario, finché non arriva l'atto."},
+"componenti-pluriennali":{ verdetto:"preparare", chi:"Ufficio, archivio cespiti",
+  inPratica:"Cantieri continui: fatture, contratti e computi vanno conservati per tutto l'ammortamento. Per i lavori sull'Hartmann, che non è nostro, conta anche la durata del contratto.",
+  esempio:"Rifacimento camere all'Acadia da 400.000 euro ammortizzato al 3%: l'ultima quota si deduce dopo il 2058. Gli stessi lavori sull'Hartmann sono spese su beni di terzi e si deducono sulla durata residua del contratto, se non è più breve la vita utile."},
+"sport-dilettantistico":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"I 3.000 euro allo sci club restano deducibili come pubblicità: la circolare riguarda l'associazione, non noi.",
+  esempio:"Sponsorizzazione da 3.000 euro con fattura e contratto: deducibile per intero e senza obbligo di pagamento tracciato; cambia solo la tassazione in capo al club."},
+"hartmann-parti-correlate":{ verdetto:"studio", chi:"Soci e amministratori con lo studio Alber Flaim",
+  inPratica:"Far controllare contratto, canone e clausole sui lavori dell'Hartmann: è il rapporto più esposto in caso di verifica, perché un proprietario è anche amministratore.",
+  esempio:"Canone dell'Hartmann di 300.000 euro l'anno a fronte di un valore di mercato di 200.000: i 100.000 in più sono utili spostati ai proprietari, con IRES e IRAP recuperate dall'Ufficio più sanzioni. Con perizia e verbale dei soci il problema non nasce."},
+"g26-rimborso-iva-annuale":{ verdetto:"studio", chi:"Studio Alber Flaim",
+  inPratica:"Negli anni di investimento la Saslong chiude a credito IVA: chiedere il rimborso invece di trascinarlo in compensazione.",
+  esempio:"Vendite 6 milioni al 10% = 600.000 di IVA a debito; acquisti e lavori per 3 milioni al 22% = 660.000 a credito: 60.000 euro di credito, aliquota media rispettata. Fino a 30.000 senza garanzia, oltre serve il visto (niente esonero ISA: siamo fuori soglia)."},
+"g26-compensazioni":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"A gennaio controllare che non ci siano cartelle scadute e concordare con lo studio quando parte la dichiarazione IVA.",
+  esempio:"Credito IVA di 60.000 euro: 5.000 subito a gennaio, il resto dal decimo giorno dopo l'invio della dichiarazione con visto. Una cartella da 2.000 euro non pagata blocca tutto."},
+"g26-trasferte-tracciabilita":{ verdetto:"preparare", chi:"Ufficio e direzione",
+  inPratica:"Poche trasferte, ma quelle di direzione e amministrazione in Italia vanno pagate con carta: regola scritta e carta aziendale.",
+  esempio:"Fiera del turismo a Rimini: 600 euro di albergo e ristoranti pagati in contanti sono indeducibili e tassati a chi li ha anticipati; con carta restano esenti e deducibili."},
+"g26-perdite-contributi-covid":{ verdetto:"studio", chi:"Studio Alber Flaim",
+  inPratica:"100.000 euro di contributi Covid: chiedere se hanno ridotto le perdite fiscali 2020-2021, perché il MEF dice che non dovevano.",
+  esempio:"Se la perdita 2020 è stata abbattuta di 100.000 euro, quella somma torna perdita utilizzabile: al 24% sono 24.000 euro di IRES da recuperare sugli utili degli anni successivi."},
+"g26-stampa-registri":{ verdetto:"preparare", chi:"Ufficio con lo studio",
+  inPratica:"Esercizio al 31 ottobre: i registri chiusi entro il 30 novembre dell'anno dopo e il bollo digitale entro il 28 febbraio.",
+  esempio:"Esercizio 1° novembre 2025 - 31 ottobre 2026: dichiarazione dei redditi entro il 31 agosto 2027, file dei registri con marca temporale entro il 30 novembre 2027, bollo 2501 entro il 28 febbraio 2027."},
+"g26-conto-termico":{ verdetto:"studio", chi:"Direzione con studio e tecnico",
+  inPratica:"Ogni intervento sugli impianti termici va confrontato con il Conto Termico 3.0 prima dell'ordine; sull'Hartmann la domanda va concordata con i proprietari.",
+  esempio:"Pompa di calore per l'Acadia (2001) da 80.000 euro: il GSE copre una quota rilevante con contributo diretto, se la domanda segue le regole del bando. Sull'Hartmann, edificio del 1961 e di terzi, va prima chiarito chi paga e chi incassa l'incentivo."},
+"g26-bando-isi-inail":{ verdetto:"studio", chi:"Direzione con consulente sicurezza",
+  inPratica:"Con 30 addetti e tre strutture, un investimento in sicurezza già previsto può passare dal bando ISI a fondo perduto.",
+  esempio:"Attrezzature di cucina e lavanderia o sistemi anticaduta per la manutenzione dei tetti: il bando copre una quota importante, per investimenti fatti dopo la domanda."},
+"g26-verifiche-inizio-anno":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Con 6 milioni di ricavi ogni soglia dei regimi semplificati è lontana: nulla da verificare.",
+  esempio:"La soglia per l'IVA trimestrale è 500.000 euro di servizi: la Saslong la supera dodici volte."},
+"g26-iva-per-cassa":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Il regime è riservato a chi sta sotto 2 milioni di volume d'affari: la Saslong non può nemmeno accedervi.",
+  esempio:"Con 6 milioni di volume d'affari l'opzione non è esercitabile; anche se lo fosse, rinviare la detrazione al pagamento dei fornitori peserebbe più del vantaggio."},
+"g26-codici-tributo-avvisi":{ verdetto:"ignorare", chi:"nessuno",
+  inPratica:"Codici legati al concordato preventivo biennale: la Saslong è fuori dagli ISA.",
+  esempio:"Servirebbero solo se un anno il fatturato scendesse sotto 5,16 milioni e si aderisse al concordato."}
+};
+const CORREZIONI = {
+  "iva-estera-2025":{ impatto:"Gli acquisti all'estero della Saslong sono quasi nulli: l'IVA austriaca o tedesca del 2025, se c'è, è poca. Resta comunque l'unica finestra dell'anno e sotto 50 euro di IVA non si presenta.",
+                      scadenze:[{data:"2026-09-30", descrizione:"Eventuale istanza di rimborso IVA estera 2025, solo se dalla verifica escono fatture estere sopra soglia", tipo:"adempimento"}] },
+  "cpb-rinnovo":{ impatto:"Con ricavi fra 5,5 e 6 milioni la Saslong supera la soglia ISA di 5.164.569 euro: non è soggetto ISA e non può aderire al concordato. Le novità sul rinnovo non la toccano.",
+                  opportunita:null, azione:"Nessuna. Da rivalutare solo se il fatturato scendesse sotto la soglia ISA.", stato:"non applicabile", rilevanza:"nulla", scadenze:[] },
+  "g26-rimborso-iva-annuale":{ impatto:"Vendite al 10% e acquisti al 22%: negli anni con lavori sugli alberghi la Saslong chiude a credito IVA, ed è il caso dell'aliquota media. Gli esoneri legati al punteggio ISA non valgono, siamo fuori soglia; oltre 30.000 euro serve il visto di conformità." },
+  "g26-compensazioni":{ impatto:"Se la Saslong compensa il credito IVA con contributi e ritenute, il calendario dell'F24 dipende da quando lo studio invia la dichiarazione. Gli esoneri dal visto per ISA e concordato non si applicano." },
+  "g26-stampa-registri":{ scadenze:[
+      {data:"2026-11-30", descrizione:"Registri contabili dell'esercizio chiuso al 31 ottobre 2025: file pronti con marca temporale e registro cespiti aggiornato (tre mesi dopo la dichiarazione dei redditi)", tipo:"adempimento", daVerificare:true},
+      {data:"2027-02-28", descrizione:"Imposta di bollo sui registri digitali dell'esercizio chiuso al 31 ottobre 2026 (F24, codice 2501, entro 120 giorni dalla chiusura)", tipo:"versamento", daVerificare:true} ] },
+  "g26-verifiche-inizio-anno":{ rilevanza:"nulla", stato:"non applicabile" },
+  "g26-iva-per-cassa":{ rilevanza:"nulla", stato:"non applicabile" },
+  "g26-codici-tributo-avvisi":{ rilevanza:"nulla", stato:"non applicabile" }
+};
+const DOMANDE_PERSONALI = {
+  "hartmann-parti-correlate":[
+    "Il contratto dell'Hartmann è una locazione o un affitto d'azienda, è registrato, e con quale durata e canone?",
+    "Il canone è stato fissato o verificato con una perizia o un confronto di mercato? È stato deliberato dai soci dando conto che uno dei proprietari è amministratore?",
+    "I lavori che la Saslong paga sull'Hartmann sono previsti dal contratto? Come vengono dedotti e che cosa succede alla scadenza o in caso di recesso?"],
+  "cpb-rinnovo":[],
+  "g26-codici-tributo-avvisi":[], "g26-verifiche-inizio-anno":[], "g26-iva-per-cassa":[],
+  "iva-estera-2025":["Nel 2025 risultano fatture con IVA austriaca o tedesca? Se sì, per quanto, e supera i 50 euro di IVA che giustificano l'istanza entro il 30 settembre?"],
+  "fringe-auto":[
+    "Porsche, Mercedes e BMW: chi le usa e a che titolo? Se soci senza rapporto di lavoro, come sono trattati oggi costi, IVA e reddito del socio?",
+    "Con le tabelle ACI 2026 e le nuove regole di agosto, quanto vale il benefit di ciascuna auto e conviene far addebitare l'uso privato con fattura?",
+    "Le auto oltre i cinque anni dalla prima immatricolazione conviene tenerle in uso promiscuo, riassegnarle al solo uso aziendale o sostituirle?"],
+  "welfare-familiari":[
+    "Per 10 fissi e 20 stagionali, quanto costerebbe un piano welfare da 500 euro a testa rispetto allo stesso netto in busta paga?",
+    "I rimborsi per l'assistenza a genitori e suoceri non conviventi si possono includere fin dalla stagione invernale? Con quali documenti?"],
+  "scorporo-terreni-irap":[
+    "Sui tre alberghi, quanto vale ogni anno la quota terreno degli ammortamenti esclusa dalla base IRAP, tenendo conto della rivalutazione fatta?",
+    "Consigliate un'istanza di rimborso IRAP per gli esercizi ancora aperti, visto che l'Agenzia è di parere contrario? Con quali costi e tempi?"],
+  "g26-rimborso-iva-annuale":[
+    "Quanto credito IVA prevedete a fine 2026 con i lavori in corso? Rispettiamo la condizione dell'aliquota media?",
+    "Conviene chiederlo a rimborso, anche oltre i 30.000 euro con il visto, o compensarlo con contributi e ritenute?"],
+  "g26-perdite-contributi-covid":[
+    "I circa 100.000 euro di contributi Covid hanno ridotto le perdite fiscali degli esercizi 2019/20 e 2020/21 della Saslong?",
+    "Se sì, quanta perdita torna utilizzabile e conviene una dichiarazione integrativa?"],
+  "g26-stampa-registri":[
+    "Con l'esercizio al 31 ottobre, confermate le date: dichiarazione entro il 31 agosto, registri entro il 30 novembre, bollo digitale entro il 28 febbraio?",
+    "Chi conserva i libri della Saslong e chi versa il bollo con il codice 2501?"],
+  "g26-conto-termico":[
+    "Per i prossimi interventi sugli impianti termici dei tre alberghi, quali rientrano nel Conto Termico 3.0 e con quale percentuale di contributo?",
+    "È cumulabile con i bandi della Provincia di Bolzano? Chi presenta la domanda al GSE?"],
+  "assegnazione-agevolata":[
+    "Nel bilancio della Saslong ci sono immobili o beni mobili registrati non strumentali per destinazione (appartamenti, garage, terreni, unità locate)?",
+    "Per ciascuno, quanto costerebbe l'assegnazione ai soci: sostitutiva 8% (o 10,5%), registro, ipotecaria e catastale, IVA? La rivalutazione fatta in passato cambia il costo fiscale?",
+    "La compagine sociale al 30 settembre 2025 è compatibile? Ci sono riserve in sospensione d'imposta che farebbero scattare il 13%?",
+    "Se conviene, riusciamo ad avere l'atto dal notaio entro il 30 settembre?"]
+};
+Object.keys(MOSSE_PERSONALI).forEach(id=>{ MOSSE[id]=Object.assign(MOSSE[id]||{},MOSSE_PERSONALI[id]); });
+Object.keys(DOMANDE_PERSONALI).forEach(id=>{ DOMANDE[id]=DOMANDE_PERSONALI[id]; });
+VOCI_BASE.forEach(v=>{
+  const m=MOSSE[v.id]; if(m) Object.assign(v,m);
+  if(DOMANDE[v.id]) v.domande=DOMANDE[v.id];
+  if(CORREZIONI[v.id]) Object.assign(v,CORREZIONI[v.id]);
+  v.mosseVersione=MOSSE_VERSIONE;
+});
 
 const VERDETTI = {
   subito:   {etichetta:"Fare subito",          sottotitolo:"c'è una scadenza vicina"},
@@ -1006,6 +1188,12 @@ const VERDETTI = {
 function completaVoci(){
   stato.voci.forEach(v=>{
     const m=MOSSE[v.id];
+    if(m && (v.mosseVersione||1)<MOSSE_VERSIONE){
+      // nuova personalizzazione: aggiorna proposta, domande e correzioni, conserva note e stato scelti dall'utente
+      Object.assign(v,m); if(DOMANDE[v.id]) v.domande=DOMANDE[v.id];
+      if(CORREZIONI[v.id]) Object.keys(CORREZIONI[v.id]).forEach(k=>{ if(k==="stato" && v.stato==="chiusa") return; v[k]=CORREZIONI[v.id][k]; });
+      v.mosseVersione=MOSSE_VERSIONE;
+    }
     if(m) ["verdetto","inPratica","esempio","chi"].forEach(k=>{ if(v[k]===undefined) v[k]=m[k]; });
     if(!v.domande && DOMANDE[v.id]) v.domande=DOMANDE[v.id];
     if(!v.verdetto) v.verdetto = v.rilevanza==="alta" ? "subito" : v.rilevanza==="media" ? "studio" : v.rilevanza==="nulla" ? "ignorare" : "sapere";
@@ -1013,12 +1201,111 @@ function completaVoci(){
 }
 
 /* ============================================================
+   1b. PROGETTI DI PARTENZA — con lettura fiscale già scritta
+   ============================================================ */
+const PROGETTI_BASE = [
+{
+  id:"wellness-acadia", titolo:"Rinnovo del Wellness all'Hotel Acadia", stato:"deciso", categoria:"Investimento",
+  importo:200000, dataInizio:"2026-11-01", dataFine:"2026-12-01", creato:"2026-09-08",
+  descrizione:"Rifacimento dell'area wellness dell'Hotel Acadia (immobile di proprietà della Saslong Srl). Spesa prevista 200.000 euro, lavori dal 1° novembre al 1° dicembre 2026.",
+  angoli:[
+    "Esercizio: i lavori partono il 1° novembre, primo giorno dell'esercizio 2026/27. Costi e ammortamenti cadono nell'esercizio che chiude il 31 ottobre 2027, con la quota del primo anno dimezzata.",
+    "Natura della spesa: è una ristrutturazione incrementativa, si capitalizza. Ma opere murarie (ammortamento 3%), impianti (aliquote più alte) e attrezzature come saune, vasche e macchine (vita utile breve) si deducono a velocità diverse: i preventivi vanno dettagliati per voce.",
+    "IVA: 44.000 euro al 22% detraibili. Con le vendite al 10% spingono la Saslong a credito: da qui la richiesta di rimborso IVA per aliquota media (scheda in archivio).",
+    "Incentivi: Conto Termico 3.0 se entrano generatori, pompe di calore o solare per l'acqua calda della spa; bando ISI INAIL se ci sono interventi di sicurezza; bandi della Provincia di Bolzano per la qualificazione alberghiera.",
+    "Fatture a cavallo: fine lavori 1° dicembre, saldi a dicembre e gennaio: sezionale dedicato e detrazione garantita dalle nuove regole biennali.",
+    "Documenti: computi, contratti e collaudi vanno conservati per tutto l'ammortamento, cioè decenni."
+  ],
+  attenzione:[
+    "Per bandi provinciali, INAIL e in parte Conto Termico la domanda va di norma presentata prima dell'inizio dei lavori: a poche settimane dal cantiere è l'unica cosa davvero urgente.",
+    "Tenere separate in fattura le attrezzature dal fabbricato: una fattura unica 'lavori wellness' finisce tutta al 3%."
+  ],
+  domande:[
+    "Il wellness dell'Acadia (200.000 euro, lavori 1° novembre - 1° dicembre) può accedere a un bando provinciale, al Conto Termico o al bando INAIL? La domanda serve prima dell'inizio lavori?",
+    "Come vi serve il dettaglio dei preventivi (murario, impianti, attrezzature) per ammortizzare ogni parte con la sua aliquota?",
+    "Con questo investimento e il restyling delle camere chiudiamo il 2026 a credito IVA: prepariamo la richiesta di rimborso?"
+  ],
+  vociCollegate:["g26-conto-termico","g26-bando-isi-inail","g26-rimborso-iva-annuale","iva-detrazione-biennale","componenti-pluriennali","g26-stampa-registri"]
+},
+{
+  id:"restyling-camere-saslong", titolo:"Restyling delle 50 camere dello Smart Hotel Saslong", stato:"deciso", categoria:"Investimento",
+  importo:100000, dataInizio:"2026-11-01", dataFine:"2026-11-30", creato:"2026-09-08",
+  descrizione:"Rinnovo delle 50 camere dello Smart Hotel Saslong, circa 2.000 euro a camera (100.000 euro), lavori dal 1° al 30 novembre 2026.",
+  angoli:[
+    "Manutenzione o investimento: tinteggiature, tessili, piccole sostituzioni sono manutenzione ordinaria, deducibile subito entro il 5% del costo dei cespiti a inizio esercizio (l'eccedenza in cinque anni). Arredi e mobili nuovi sono cespiti da ammortizzare (mobili e arredamento per alberghi: aliquota tabellare, di norma 10%). Con 2.000 euro a camera la linea fra le due cose decide quanto si deduce nell'anno.",
+    "Ordine di grandezza: con cespiti per, ipotesi, 8 milioni il plafond del 5% vale 400.000 euro: i 100.000 potrebbero andare tutti in deduzione immediata se sono manutenzione.",
+    "IVA: 22.000 euro detraibili. Fine lavori 30 novembre: fatture entro l'esercizio o a cavallo, comunque recuperabili.",
+    "Se il restyling include domotica o self check-in evoluto: verificare i crediti per la digitalizzazione; Transizione 5.0 riguarda beni strumentali 4.0 con risparmio energetico certificato, difficile per arredi."
+  ],
+  attenzione:[
+    "Far fatturare separatamente manutenzioni e arredi: una fattura unica 'restyling camere' finisce tutta capitalizzata al 10%.",
+    "Stesso mese del wellness: due investimenti insieme, verificare che le liquidità coprano IVA e saldi prima del rimborso."
+  ],
+  domande:[
+    "Del restyling delle 50 camere (100.000 euro) quale parte è manutenzione deducibile subito e quale va ammortizzata? Quanto vale il nostro plafond del 5%?",
+    "Come vanno impostate le fatture dei fornitori per non perdere la deduzione immediata?"
+  ],
+  vociCollegate:["componenti-pluriennali","iva-detrazione-biennale","g26-rimborso-iva-annuale"]
+},
+{
+  id:"alloggi-collaboratori", titolo:"Immobile da adibire ad alloggi per i collaboratori", stato:"idea", categoria:"Immobili",
+  importo:2000000, dataInizio:null, dataFine:null, creato:"2026-09-08",
+  descrizione:"Ricerca di un immobile da destinare ad alloggi per il personale (10 fissi e 20 stagionali). Limite di spesa circa 2.000.000 euro.",
+  angoli:[
+    "Il nodo è la categoria catastale. Un immobile abitativo (A/2, A/3...) comprato dalla società è di regola 'patrimoniale': IVA indetraibile sull'acquisto e sui lavori, ammortamenti e costi non deducibili, tassazione sulla rendita. Se invece è classificato, o classificabile, come alloggio per il personale strumentale all'attività alberghiera, il trattamento cambia. È la prima domanda da fare, prima di scegliere l'immobile.",
+    "Alloggio ai dipendenti = fringe benefit, valutato sulla rendita catastale (art. 51, comma 4, lett. c, TUIR), ridotto se c'è obbligo di dimora. Per i dipendenti trasferiti le spese di alloggio sono deducibili per la società nei primi tre anni (art. 95, comma 2).",
+    "Imposte sull'acquisto: da privato registro 9% più ipotecaria e catastale fisse; da impresa IVA (10% o 22% secondo fabbricato e venditore) oppure esente con registro 9%. Su 2 milioni sono 180.000 euro di differenza fra i casi: il budget deve comprenderle.",
+    "Alternative da mettere sul tavolo: locazione pluriennale, leasing immobiliare, acquisto tramite una società immobiliare del gruppo che affitta alla Saslong, costruzione su terreno proprio.",
+    "Provincia di Bolzano: esistono misure per gli alloggi dei lavoratori nel turismo (edilizia convenzionata per dipendenti, contributi): da verificare prima di comprare.",
+    "Welfare: l'alloggio è la leva più forte per far tornare i 20 stagionali."
+  ],
+  attenzione:[
+    "Non firmare prima di aver chiarito categoria catastale e IVA: su 2 milioni l'IVA indetraibile può valere fra 200.000 e 400.000 euro.",
+    "Se il venditore è un privato, il preliminare vincola: far vedere il compromesso allo studio prima."
+  ],
+  domande:[
+    "Per un immobile da circa 2 milioni destinato ad alloggi del personale, quale categoria catastale e quale struttura (Saslong, immobiliare del gruppo, leasing) rendono deducibili ammortamenti e costi e detraibile l'IVA?",
+    "Quanto pesano registro, IVA e ipocatastali nei diversi casi, venditore privato o impresa?",
+    "Come si tassa l'alloggio in capo ai dipendenti e agli stagionali, e quali agevolazioni provinciali esistono per gli alloggi dei lavoratori?"
+  ],
+  vociCollegate:["welfare-familiari","scorporo-terreni-irap","imu-novita","g26-rimborso-iva-annuale"]
+},
+{
+  id:"garni-braies", titolo:"Trattativa per un garni con 9 camere a Braies", stato:"in corso", categoria:"Immobili",
+  importo:1900000, dataInizio:null, dataFine:null, creato:"2026-09-08",
+  descrizione:"Trattativa per l'acquisto di un immobile adibito a garni, 9 camere, a Braies. Richiesta 1.900.000 euro, ritenuta troppo alta dalla Saslong.",
+  angoli:[
+    "Prezzo: 211.000 euro a camera. Per un garni da 9 camere il valore lo fa il reddito che produce (ricavo per camera, stagioni, costi) più che i muri: una perizia e un conto economico prospettico sono l'argomento di trattativa più forte.",
+    "Che cosa si compra: solo l'immobile (registro 9% se da privato, o IVA) oppure l'azienda garni (cessione d'azienda: registro 3% sull'avviamento e 9% sugli immobili, subentro in contratti, dipendenti e licenze). Cambiano prezzo netto, imposte e rischi ereditati.",
+    "Scopo: se è pensato come alloggio per il personale, Braies è a un'ora e mezza da Ortisei e come foresteria non funziona; se è una nuova attività, entrano un nuovo Comune, una nuova imposta di soggiorno e una gestione a distanza.",
+    "Finanziamento: mutuo o leasing; gli interessi si deducono nel limite del 30% del ROL.",
+    "Terreno: il 20% del costo va scorporato e non si ammortizza."
+  ],
+  attenzione:[
+    "Chiarire lo scopo prima del prezzo: alloggio staff o nuova attività? Il valore giusto cambia.",
+    "Caparre e preliminari vincolano: niente firme senza il parere dello studio."
+  ],
+  domande:[
+    "Se comprassimo il garni di Braies (richiesta 1,9 milioni, 9 camere), conviene acquistare l'immobile o l'azienda? Quali imposte in ciascun caso?",
+    "Potete aiutarci con una valutazione reddituale da usare in trattativa?",
+    "In quale società conviene metterlo e con quale finanziamento?"
+  ],
+  vociCollegate:["scorporo-terreni-irap","componenti-pluriennali","cessione-azienda-delibera","imu-novita","antieconomicita"]
+}
+];
+function unisciProgetti(){
+  if(!Array.isArray(stato.progetti)) stato.progetti=[];
+  const presenti=new Set(stato.progetti.map(p=>p.id));
+  PROGETTI_BASE.forEach(p=>{ if(!presenti.has(p.id)) stato.progetti.push(JSON.parse(JSON.stringify(p))); });
+}
+
+/* ============================================================
    2. MEMORIA
    ============================================================ */
 const CHIAVE = "alpstay-radar-fiscale-v1";
 const PROXY_DEFAULT = "https://radarfiscale.ezioprinoth.workers.dev";
-const LETTERA_DEFAULT = { azienda:"Saslong Srl – Smart Hotel Saslong", indirizzo:"Via Rezia 308, Ortisei (BZ)", referente:"", email:"info@saslong.eu", telefono:"+39 0471 774444", studio:"Spett.le Studio", emailStudio:"" };
-let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:PROXY_DEFAULT,chiave:""} };
+const LETTERA_DEFAULT = { azienda:"Saslong Srl – Smart Hotel Saslong", indirizzo:"Via Rezia 308, Ortisei (BZ)", referente:"", email:"info@saslong.eu", telefono:"+39 0471 774444", studio:"Spett.le Studio Alber Flaim – Bolzano", emailStudio:"" };
+let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:PROXY_DEFAULT,chiave:""}, progetti:[] };
 let memoriaAttiva = true;
 // Ordine: Firebase (archivio condiviso) > window.storage dentro Claude > memoria del browser.
 const dentroClaude = typeof window.storage !== "undefined";
@@ -1027,7 +1314,7 @@ let memoriaBrowser = null;
 try{ memoriaBrowser = window.localStorage; memoriaBrowser.getItem(CHIAVE); }catch(e){ memoriaBrowser=null; }
 let db=null, utente=null;
 const CHIAVE_LETTURA_LOCALE = CHIAVE+"-chiave-lettura";   // la chiave API non va mai nel database condiviso
-let ultimo = { voci:{}, fatte:"", note:"", imp:"" };     // ultimo stato scritto su Firebase, per inviare solo le differenze
+let ultimo = { voci:{}, progetti:{}, fatte:"", note:"", imp:"" };     // ultimo stato scritto su Firebase, per inviare solo le differenze
 
 const codFatte = o => Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k.replace(/#/g,"__"),v]));
 const decFatte = o => Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k.replace(/__/g,"#"),v]));
@@ -1038,12 +1325,14 @@ function impostazioniDaStato(){
 function statoDaSnapshot(d){
   d=d||{};
   const voci=Object.values(d.voci||{}).sort((a,b)=>String(a.titolo).localeCompare(String(b.titolo)));
+  const progetti=Object.values(d.progetti||{}).sort((a,b)=>String(a.creato||"").localeCompare(String(b.creato||"")));
   const imp=d.impostazioni||{};
-  return { voci, fatte:decFatte(d.fatte), note:d.note||{}, preavviso:imp.preavviso||30, profilo:imp.profilo||"",
+  return { voci, progetti, fatte:decFatte(d.fatte), note:d.note||{}, preavviso:imp.preavviso||30, profilo:imp.profilo||"",
            profiloVersione:imp.profiloVersione||1, lettera:imp.lettera||{}, lettura:{proxy:(imp.lettura&&imp.lettura.proxy)||"", chiave:""} };
 }
 function aggiornaUltimo(){
   ultimo.voci={}; stato.voci.forEach(v=>ultimo.voci[v.id]=JSON.stringify(v));
+  ultimo.progetti={}; (stato.progetti||[]).forEach(p=>ultimo.progetti[p.id]=JSON.stringify(p));
   ultimo.fatte=JSON.stringify(codFatte(stato.fatte)); ultimo.note=JSON.stringify(stato.note||{}); ultimo.imp=JSON.stringify(impostazioniDaStato());
 }
 
@@ -1067,6 +1356,7 @@ async function salva(){
     if(FIREBASE_ATTIVO){
       const upd={};
       stato.voci.forEach(v=>{ const j=JSON.stringify(v); if(ultimo.voci[v.id]!==j){ upd[FIREBASE_NODO+"/voci/"+v.id]=JSON.parse(j); ultimo.voci[v.id]=j; } });
+      (stato.progetti||[]).forEach(p=>{ const j=JSON.stringify(p); if(ultimo.progetti[p.id]!==j){ upd[FIREBASE_NODO+"/progetti/"+p.id]=JSON.parse(j); ultimo.progetti[p.id]=j; } });
       const f=codFatte(stato.fatte), jf=JSON.stringify(f); if(jf!==ultimo.fatte){ upd[FIREBASE_NODO+"/fatte"]=Object.keys(f).length?f:null; ultimo.fatte=jf; }
       const jn=JSON.stringify(stato.note||{}); if(jn!==ultimo.note){ upd[FIREBASE_NODO+"/note"]=Object.keys(stato.note||{}).length?stato.note:null; ultimo.note=jn; }
       const imp=impostazioniDaStato(), ji=JSON.stringify(imp); if(ji!==ultimo.imp){ upd[FIREBASE_NODO+"/impostazioni"]=imp; ultimo.imp=ji; }
@@ -1100,8 +1390,8 @@ function attendiAccesso(){
 function ascoltaRemoto(){
   db.ref(FIREBASE_NODO).on("value",snap=>{
     const r=statoDaSnapshot(snap.val());
-    const firmaR=JSON.stringify([r.voci.map(v=>JSON.stringify(v)).sort(),codFatte(r.fatte),r.note,{p:r.preavviso,pr:r.profilo,l:r.lettera,x:r.lettura.proxy}]);
-    const firmaL=JSON.stringify([stato.voci.map(v=>JSON.stringify(v)).sort(),codFatte(stato.fatte),stato.note||{},{p:stato.preavviso,pr:stato.profilo,l:stato.lettera,x:(stato.lettura||{}).proxy||""}]);
+    const firmaR=JSON.stringify([r.voci.map(v=>JSON.stringify(v)).sort(),r.progetti.map(p=>JSON.stringify(p)).sort(),codFatte(r.fatte),r.note,{p:r.preavviso,pr:r.profilo,l:r.lettera,x:r.lettura.proxy}]);
+    const firmaL=JSON.stringify([stato.voci.map(v=>JSON.stringify(v)).sort(),(stato.progetti||[]).map(p=>JSON.stringify(p)).sort(),codFatte(stato.fatte),stato.note||{},{p:stato.preavviso,pr:stato.profilo,l:stato.lettera,x:(stato.lettura||{}).proxy||""}]);
     if(firmaR===firmaL) return;
     if(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("nota")) return; // qualcuno sta scrivendo: rimando
     const chiave=(stato.lettura||{}).chiave||"";
@@ -1246,6 +1536,7 @@ function disegnaMosse(){
         '<p class="in-pratica">'+esc(v.inPratica||v.azione||"")+"</p>"+
         (v.esempio?'<p class="per-esempio">Per esempio: '+esc(v.esempio)+"</p>":"")+
         (v.chi?'<p class="chi">Chi se ne occupa: '+esc(v.chi)+"</p>":"")+
+        (v.progetti&&v.progetti.length?'<p class="chi" style="color:var(--oro)">Tocca il progetto: '+esc(v.progetti.map(nomeProgetto).join(", "))+"</p>":"")+
         '<div class="azioni-riga">'+
           '<button class="bottone piccolo" data-apri="'+v.id+'">Dettagli e norma</button>'+
           (v.verdetto!=="ignorare"?'<button class="bottone piccolo oro" data-domanda="'+v.id+'">Domanda al commercialista (PDF)</button>'+
@@ -1303,6 +1594,7 @@ function schedaVoce(v){
     "</div>"+
     (v.esempio?'<p class="per-esempio">Per esempio: '+esc(v.esempio)+"</p>":"")+
     (v.chi?'<p class="chi">Chi se ne occupa: '+esc(v.chi)+"</p>":"")+
+    (v.progetti&&v.progetti.length?'<p class="chi" style="color:var(--oro)">Tocca il progetto: '+esc(v.progetti.map(nomeProgetto).join(", "))+"</p>":"")+
     '<p class="rif" style="margin-top:8px">'+esc(v.riferimento||"")+"</p>"+
     '<p class="rif">'+esc(v.fonte||"")+"</p>"+
     "<div>"+cat+'<span class="tag">rilevanza '+esc(v.rilevanza)+"</span></div>"+
@@ -1396,6 +1688,7 @@ function collegaBottoni(radice){
 
 function ridisegnaTutto(){
   aggiornaFiltroCategorie();
+  disegnaProgetti();
   disegnaCruscotto();
   disegnaScadenzario();
   disegnaArchivio();
@@ -1446,6 +1739,123 @@ function riepilogoTesto(){
 }
 
 /* ============================================================
+   5a. PROGETTI E MENTOR
+   ============================================================ */
+const STATI_PROGETTO={idea:"Idea",deciso:"Deciso","in corso":"In corso",sospeso:"Sospeso",fatto:"Fatto"};
+function euro(n){ return n==null||n===""?"":Number(n).toLocaleString("it-IT")+" euro"; }
+function nomeProgetto(id){ const p=(stato.progetti||[]).find(x=>x.id===id); return p?p.titolo:id; }
+function periodoProgetto(p){
+  if(p.dataInizio&&p.dataFine) return dataEstesa(p.dataInizio)+" – "+dataEstesa(p.dataFine);
+  if(p.dataInizio) return "dal "+dataEstesa(p.dataInizio);
+  return "";
+}
+function testoProgettiPerPrompt(){
+  const ap=(stato.progetti||[]).filter(p=>p.stato!=="fatto");
+  return ap.length ? ap.map(p=>p.id+": "+p.titolo+(p.importo?", "+euro(p.importo):"")+(periodoProgetto(p)?", "+periodoProgetto(p):"")+" ["+(STATI_PROGETTO[p.stato]||p.stato)+"]").join("; ") : "nessuno";
+}
+function voceDaProgetto(p){
+  return { id:"prog-"+p.id, tipoLettera:"progetto", titolo:p.titolo,
+    riferimento:[p.importo?"Importo stimato: "+euro(p.importo):"",periodoProgetto(p)?"Tempi: "+periodoProgetto(p):"","Stato: "+(STATI_PROGETTO[p.stato]||p.stato)].filter(Boolean).join("\n"),
+    fonte:"Registro progetti Saslong", sintesi:p.descrizione||"",
+    impatto:(p.angoli||[]).map(a=>"• "+a).join("\n"), opportunita:(p.attenzione||[]).length?"Punti di attenzione:\n"+(p.attenzione||[]).map(a=>"• "+a).join("\n"):null,
+    domande:p.domande||[], scadenze:p.dataInizio&&giorniA(p.dataInizio)>=0?[{data:p.dataInizio,descrizione:"Inizio previsto: "+p.titolo}]:[] };
+}
+function disegnaProgetti(){
+  const box=$("#listaProgetti"); if(!box) return;
+  const lista=(stato.progetti||[]).slice().sort((a,b)=>{ const o={"in corso":0,deciso:1,idea:2,sospeso:3,fatto:4}; return (o[a.stato]??9)-(o[b.stato]??9); });
+  if(!lista.length){ box.innerHTML='<p class="vuoto">Nessun progetto ancora. Aggiungine uno o chiedi al mentor: se dalla risposta esce un progetto, lo puoi salvare qui.</p>'; return; }
+  box.innerHTML=lista.map(p=>{
+    const collegate=(p.vociCollegate||[]).map(id=>stato.voci.find(v=>v.id===id)).filter(Boolean);
+    const citano=stato.voci.filter(v=>(v.progetti||[]).includes(p.id));
+    const tutte=[...collegate,...citano.filter(v=>!collegate.includes(v))];
+    return '<article class="progetto" id="p-'+p.id+'">'+
+      "<h3>"+esc(p.titolo)+'<span class="stato-p">'+(STATI_PROGETTO[p.stato]||esc(p.stato))+"</span></h3>"+
+      '<p class="meta">'+[p.importo?euro(p.importo):"",periodoProgetto(p)].filter(Boolean).join(" · ")+"</p>"+
+      (p.descrizione?'<p style="margin:0 0 6px;font-size:15px;max-width:72ch">'+esc(p.descrizione)+"</p>":"")+
+      ((p.angoli||[]).length?'<div class="campo"><h5>Lettura fiscale</h5><ul>'+p.angoli.map(a=>"<li>"+esc(a)+"</li>").join("")+"</ul></div>":"")+
+      ((p.attenzione||[]).length?'<div class="campo opportunita"><h5>Attenzione</h5><ul>'+p.attenzione.map(a=>"<li>"+esc(a)+"</li>").join("")+"</ul></div>":"")+
+      (tutte.length?'<div class="campo"><h5>Norme in archivio che c\'entrano</h5><div>'+tutte.map(v=>'<button class="bottone piccolo" style="margin:3px 6px 3px 0" data-apri="'+v.id+'">'+esc(v.titolo)+"</button>").join("")+"</div></div>":"")+
+      ((p.domande||[]).length?'<div class="campo"><h5>Domande per lo studio</h5><ul>'+p.domande.map(d=>"<li>"+esc(d)+"</li>").join("")+"</ul></div>":"")+
+      '<div class="campo"><h5>Note</h5><textarea class="nota" data-nota-progetto="'+p.id+'" placeholder="Decisioni prese, risposte dello studio, preventivi…">'+esc(p.note||"")+"</textarea></div>"+
+      '<div class="azioni-riga">'+
+        '<select class="stato" data-stato-progetto="'+p.id+'">'+Object.entries(STATI_PROGETTO).map(([k,n])=>'<option value="'+k+'"'+(p.stato===k?" selected":"")+">"+n+"</option>").join("")+"</select>"+
+        '<button class="bottone piccolo oro" data-pdf-progetto="'+p.id+'">Domanda allo studio (PDF)</button>'+
+        '<button class="bottone piccolo" data-mail-progetto="'+p.id+'">Prepara la mail</button>'+
+      "</div></article>";
+  }).join("");
+  box.querySelectorAll("[data-apri]").forEach(b=>b.onclick=()=>{ mostraVista("archivio"); apriVoce(b.dataset.apri); });
+  box.querySelectorAll("[data-pdf-progetto]").forEach(b=>b.onclick=()=>{ const p=stato.progetti.find(x=>x.id===b.dataset.pdfProgetto); if(p) scaricaPdfDomande([voceDaProgetto(p)]); });
+  box.querySelectorAll("[data-mail-progetto]").forEach(b=>b.onclick=()=>{ const p=stato.progetti.find(x=>x.id===b.dataset.mailProgetto); if(p) apriMailDomanda(voceDaProgetto(p)); });
+  box.querySelectorAll("[data-stato-progetto]").forEach(s=>s.onchange=async()=>{ const p=stato.progetti.find(x=>x.id===s.dataset.statoProgetto); if(p){ p.stato=s.value; await salva(); disegnaProgetti(); } });
+  box.querySelectorAll("[data-nota-progetto]").forEach(t=>{ let timer; t.oninput=()=>{ clearTimeout(timer); timer=setTimeout(async()=>{ const p=stato.progetti.find(x=>x.id===t.dataset.notaProgetto); if(p){ p.note=t.value; await salva(); } },500); }; });
+}
+function briefingStudio(){
+  const ap=(stato.progetti||[]).filter(p=>p.stato!=="fatto"&&p.stato!=="sospeso");
+  if(!ap.length){ alert("Nessun progetto aperto da mandare allo studio."); return; }
+  scaricaPdfDomande(ap.map(voceDaProgetto));
+}
+
+/* --- il mentor --- */
+let conversazioneMentor=[];
+function archivioPerPrompt(){
+  return stato.voci.filter(v=>v.verdetto!=="ignorare").map(v=>"- ["+v.id+"] "+v.titolo+": "+(v.inPratica||"")).join("\n");
+}
+async function chiediAlMentor(){
+  const q=$("#domandaMentor").value.trim(), es=$("#esitoMentor"), btn=$("#btnMentor");
+  if(q.length<10){ es.className="esito errore"; es.textContent="Scrivi la domanda con qualche dettaglio in più."; return; }
+  btn.disabled=true; es.className="esito"; es.textContent="Il mentor sta ragionando…";
+  const storia=conversazioneMentor.slice(-3).map(c=>"DOMANDA PRECEDENTE: "+c.d+"\nRISPOSTA IN BREVE: "+c.r).join("\n");
+  const istruzioni=
+"Sei il consulente aziendale e fiscale di fiducia di questa azienda. Rispondi in italiano, concreto, con i numeri dell'azienda, senza teoria.\n\n"+
+"PROFILO DELL'AZIENDA:\n"+stato.profilo+"\n\n"+
+"PROGETTI APERTI: "+testoProgettiPerPrompt()+"\n\n"+
+"NORME GIÀ IN ARCHIVIO (id, titolo, che cosa fare):\n"+archivioPerPrompt()+"\n\n"+
+(storia?storia+"\n\n":"")+
+"DOMANDA: "+q+"\n\n"+
+"Rispondi SOLO con un oggetto JSON valido, senza markdown, sotto le 380 parole in totale, con queste chiavi:\n"+
+"inBreve (2-3 frasi: il consiglio), cambia (array 2-4 punti: che cosa cambia su imposte, IVA, costi, cassa, con cifre), agevolazioni (array 0-3 punti: norme o incentivi in archivio che si agganciano, citando l'id fra parentesi quadre), rischi (array 1-3 punti: errori da evitare), decidere (array 1-3 punti: cosa decidere prima e in che ordine), domande (array 2-3 domande secche per il commercialista), progetto (null, oppure {titolo, descrizione, importo numero o null, dataInizio AAAA-MM-GG o null, dataFine o null} se la domanda descrive un progetto concreto non ancora in elenco).";
+  try{
+    const r=await chiamaModello({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:istruzioni}]});
+    if(!r.ok) throw new Error("il servizio ha risposto "+r.status+": "+await leggiErroreApi(r));
+    const dati=await r.json();
+    const testo=(dati.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("\n");
+    const a=testo.indexOf("{"), b=testo.lastIndexOf("}");
+    if(a===-1) throw new Error("risposta non leggibile");
+    let ris; try{ ris=JSON.parse(testo.slice(a,b+1)); }catch(e){ ris={inBreve:testo.slice(a)}; }
+    conversazioneMentor.push({d:q,r:ris.inBreve||""});
+    mostraRispostaMentor(q,ris);
+    es.textContent="";
+  }catch(e){ es.className="esito errore"; es.textContent="Il mentor non ha risposto: "+e.message; }
+  finally{ btn.disabled=false; }
+}
+function mostraRispostaMentor(domanda,ris){
+  const lista=(arr,titolo)=>Array.isArray(arr)&&arr.length?"<h4>"+titolo+"</h4><ul>"+arr.map(x=>"<li>"+esc(x)+"</li>").join("")+"</ul>":"";
+  const box=$("#rispostaMentor");
+  const html='<div class="risposta-mentor">'+
+    '<p class="rif" style="margin:0 0 6px">Domanda: '+esc(domanda)+"</p>"+
+    '<p class="breve">'+esc(ris.inBreve||"")+"</p>"+
+    lista(ris.cambia,"Che cosa cambia")+lista(ris.agevolazioni,"Norme e incentivi che si agganciano")+
+    lista(ris.rischi,"Errori da evitare")+lista(ris.decidere,"Che cosa decidere prima")+lista(ris.domande,"Domande per lo studio")+
+    '<div class="azioni-riga" style="margin-top:12px">'+
+      (Array.isArray(ris.domande)&&ris.domande.length?'<button class="bottone piccolo oro" id="btnMentorPdf">Domande allo studio (PDF)</button>':"")+
+      (ris.progetto&&ris.progetto.titolo?'<button class="bottone piccolo" id="btnMentorProgetto">Salva come progetto</button>':"")+
+    "</div>"+
+    '<p class="avvertenza">Ipotesi ragionate sui numeri della Saslong, non un parere professionale: ogni decisione con soldi sopra va confermata dallo studio Alber Flaim prima di firmare.</p>'+
+  "</div>";
+  box.insertAdjacentHTML("afterbegin",html);
+  const voceM={ id:"mentor-"+Date.now(), tipoLettera:"mentor", titolo:domanda.length>90?domanda.slice(0,87)+"…":domanda, riferimento:"Valutazione interna con il mentor del Radar fiscale",
+    sintesi:ris.inBreve||"", impatto:(ris.cambia||[]).map(x=>"• "+x).join("\n"), opportunita:(ris.rischi||[]).length?"Punti di attenzione:\n"+(ris.rischi||[]).map(x=>"• "+x).join("\n"):null, domande:ris.domande||[], scadenze:[] };
+  const bp=box.querySelector("#btnMentorPdf"); if(bp) bp.onclick=()=>scaricaPdfDomande([voceM]);
+  const bs=box.querySelector("#btnMentorProgetto"); if(bs) bs.onclick=async()=>{
+    const pr=ris.progetto; const id="prog-"+Date.now().toString(36);
+    stato.progetti.push({ id, titolo:pr.titolo, descrizione:pr.descrizione||domanda, importo:pr.importo||null, dataInizio:pr.dataInizio||null, dataFine:pr.dataFine||null,
+      stato:"idea", categoria:"Dal mentor", creato:isoLocale(new Date()), angoli:[...(ris.cambia||[]),...(ris.agevolazioni||[])], attenzione:[...(ris.rischi||[]),...(ris.decidere||[])], domande:ris.domande||[], vociCollegate:[] });
+    await salva(); disegnaProgetti(); bs.textContent="Progetto salvato"; bs.disabled=true;
+    const el=document.getElementById("p-"+id); if(el) el.scrollIntoView({block:"start"});
+  };
+}
+
+/* ============================================================
    5b. DOMANDA AL COMMERCIALISTA GIÀ SCRITTA
    ============================================================ */
 function costruisciDomanda(v){
@@ -1459,9 +1869,9 @@ function costruisciDomanda(v){
     "Quali documenti o dati vi servono da noi per procedere?",
     "Entro quando dobbiamo decidere e quali sono i costi dell'operazione?"];
   const blocchi=[
-    {t:"Riferimento", p:(v.riferimento||"")+(v.fonte?"\nSegnalato in: "+v.fonte:"")},
-    {t:"Che cosa abbiamo capito", p:v.sintesi||""},
-    {t:"Perché ci interessa", p:[v.impatto,v.opportunita].filter(Boolean).join("\n")},
+    {t:v.tipoLettera==="progetto"?"Il progetto":"Riferimento", p:(v.riferimento||"")+(v.fonte&&v.tipoLettera!=="progetto"?"\nSegnalato in: "+v.fonte:"")},
+    {t:v.tipoLettera==="progetto"?"Di che cosa si tratta":"Che cosa abbiamo capito", p:v.sintesi||""},
+    {t:v.tipoLettera==="progetto"?"Che cosa abbiamo capito del quadro fiscale":"Perché ci interessa", p:[v.impatto,v.opportunita].filter(Boolean).join("\n")},
     {t:"Le nostre domande", elenco:domande}
   ];
   if(sc.length) blocchi.push({t:"Date da rispettare", elenco:sc.map(x=>dataEstesa(x.data)+": "+x.descrizione)});
@@ -1469,7 +1879,11 @@ function costruisciDomanda(v){
   return {
     oggetto:"Richiesta di parere: "+v.titolo,
     mittente:L, data:dataEstesa(isoLocale(OGGI)),
-    saluto:L.studio+",\ncon la presente vi sottoponiamo una novità segnalata nella circolare che ci avete inviato e alcune domande sul nostro caso.",
+    saluto:L.studio+",\n"+(v.tipoLettera==="progetto"
+      ? "vi presentiamo un progetto che abbiamo in programma e vi chiediamo un parere prima di decidere."
+      : v.tipoLettera==="mentor"
+      ? "vi sottoponiamo una questione che stiamo valutando e alcune domande sul nostro caso."
+      : "con la presente vi sottoponiamo una novità segnalata nella circolare che ci avete inviato e alcune domande sul nostro caso."),
     blocchi,
     firma:[L.referente, L.azienda, L.indirizzo, [L.email,L.telefono].filter(Boolean).join(" · ")].filter(Boolean)
   };
@@ -1591,7 +2005,8 @@ async function leggiErroreApi(r){
 async function analizzaPezzo(pezzo,fonte){
   const istruzioni =
 "Profilo dell'azienda: "+stato.profilo+"\n\n"+
-"Leggi il testo della circolare fiscale qui sotto e individua le novità che contano per questa azienda.\n"+
+"PROGETTI APERTI DELL'AZIENDA (id: descrizione): "+testoProgettiPerPrompt()+"\n\n"+
+"Leggi il testo della circolare fiscale qui sotto e individua le novità che contano per questa azienda, con particolare attenzione a quelle che toccano i progetti aperti.\n"+
 "Rispondi SOLO con un array JSON valido, senza testo intorno e senza markdown, con al massimo 2 oggetti: scegli le due novità più importanti per questa azienda in questo blocco; se nessuna la riguarda restituisci [].\n"+
 "Sii sintetico: la risposta intera deve restare sotto le 450 parole.\n"+
 "Ogni oggetto ha esattamente queste chiavi: titolo, riferimento, sintesi, impatto, opportunita, azione, inPratica, esempio, chi, verdetto, rilevanza, categorie, scadenze.\n"+
@@ -1605,6 +2020,7 @@ async function analizzaPezzo(pezzo,fonte){
 "- esempio: un esempio concreto con numeri tondi calato su un albergo, massimo 25 parole; null se non ha senso\n"+
 "- chi: chi deve muoversi, fra ufficio, commercialista, consulente del lavoro, direzione e soci\n"+
 "- domande: array di 2 domande brevi, in italiano, da rivolgere al commercialista sul caso di questa azienda\n"+
+"- progetti: array degli id dei progetti aperti che questa novità tocca, [] se nessuno\n"+
 "- verdetto: subito se c'è una scadenza vicina, studio se serve una decisione del commercialista, preparare se è lavoro d'ufficio, sapere se non serve fare nulla, ignorare se non riguarda l'azienda\n"+
 "- rilevanza: alta, media, bassa oppure nulla\n"+
 "- categorie: array di 1-3 parole chiave (es. IVA, Immobili, Lavoro, IMU, Accertamento, Adempimenti)\n"+
@@ -1639,6 +2055,7 @@ function normalizzaVoci(lista,fonte){
     chi:v.chi||"",
     verdetto:["subito","studio","preparare","sapere","ignorare"].includes(v.verdetto)?v.verdetto:"studio",
     domande:Array.isArray(v.domande)?v.domande.filter(x=>typeof x==="string"&&x.trim()).slice(0,4):[],
+    progetti:Array.isArray(v.progetti)?v.progetti.filter(id=>(stato.progetti||[]).some(p=>p.id===id)):[],
     stato:"da valutare",
     scadenze:(Array.isArray(v.scadenze)?v.scadenze:[]).filter(s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s.data))
       .map(s=>({data:s.data,descrizione:s.descrizione||"scadenza",tipo:"adempimento"}))
@@ -1729,6 +2146,7 @@ function mostraProposte(){
     vociProposte.map((v,i)=>'<label><input type="checkbox" data-p="'+i+'"'+(v.rilevanza==="nulla"?"":" checked")+'>'+
       '<span><span class="verdetto '+v.verdetto+'">'+(VERDETTI[v.verdetto]||VERDETTI.sapere).etichetta+"</span> <b>"+esc(v.titolo)+"</b><br>"+
       esc(v.inPratica)+(v.esempio?'<br><i style="color:var(--grigio)">Per esempio: '+esc(v.esempio)+"</i>":"")+
+      (v.progetti&&v.progetti.length?'<br><b style="color:var(--oro)">Tocca il progetto: '+esc(v.progetti.map(nomeProgetto).join(", "))+"</b>":"")+
       (v.scadenze.length?"<br><i>scadenze: "+v.scadenze.map(s=>dataEstesa(s.data)).join(", ")+"</i>":"")+"</span></label>").join("")+
     '<div class="azioni-riga"><button class="bottone oro" id="btnConferma">Archivia le voci scelte</button></div></div>';
   $("#btnConferma").onclick=async()=>{
@@ -1782,6 +2200,7 @@ async function avvia(){
   if(!stato.fatte) stato.fatte={};
   if(!stato.profilo || (stato.profiloVersione||1)<PROFILO_VERSIONE){ stato.profilo=PROFILO_DEFAULT; stato.profiloVersione=PROFILO_VERSIONE; }
   unisciBase();
+  unisciProgetti();
   completaVoci();
   if(memoriaAttiva) await salva();
   if(FIREBASE_ATTIVO) ascoltaRemoto();
@@ -1790,6 +2209,7 @@ async function avvia(){
   $("#giorniPreavviso").value=stato.preavviso;
   $("#profiloAzienda").value=stato.profilo;
   stato.lettera={...LETTERA_DEFAULT,...(stato.lettera||{})};
+  if(!stato.lettera.studio || stato.lettera.studio==="Spett.le Studio") stato.lettera.studio=LETTERA_DEFAULT.studio;
   stato.lettura={proxy:"",chiave:"",...(stato.lettura||{})};
   if(!stato.lettura.proxy && !stato.lettura.chiave) stato.lettura.proxy=PROXY_DEFAULT;
   $("#lettProxy").value=stato.lettura.proxy||""; $("#lettChiave").value=stato.lettura.chiave||"";
@@ -1841,6 +2261,20 @@ async function avvia(){
     catch(e){ scarica("riepilogo-fiscale.txt",t,"text/plain"); }
   };
   $("#btnAnalizza").onclick=analizzaCircolare;
+  $("#btnMentor").onclick=chiediAlMentor;
+  $("#domandaMentor").onkeydown=e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) chiediAlMentor(); };
+  $("#btnMentorReset").onclick=()=>{ conversazioneMentor=[]; $("#rispostaMentor").innerHTML=""; $("#domandaMentor").value=""; };
+  $("#btnBriefing").onclick=briefingStudio;
+  $("#btnNuovoProgetto").onclick=()=>{ $("#moduloProgetto").hidden=false; $("#pTitolo").focus(); };
+  $("#btnAnnullaProgetto").onclick=()=>{ $("#moduloProgetto").hidden=true; };
+  $("#btnSalvaProgetto").onclick=async()=>{
+    const t=$("#pTitolo").value.trim(); if(!t){ $("#esitoProgetto").className="esito errore"; $("#esitoProgetto").textContent="Serve almeno il titolo."; return; }
+    stato.progetti.push({ id:"prog-"+Date.now().toString(36), titolo:t, descrizione:$("#pDescrizione").value.trim(), importo:$("#pImporto").value?Number($("#pImporto").value):null,
+      dataInizio:$("#pInizio").value||null, dataFine:$("#pFine").value||null, stato:$("#pStato").value, categoria:"Manuale", creato:isoLocale(new Date()), angoli:[], attenzione:[], domande:[], vociCollegate:[] });
+    await salva(); disegnaProgetti();
+    ["pTitolo","pDescrizione","pImporto","pInizio","pFine"].forEach(i=>$("#"+i).value=""); $("#moduloProgetto").hidden=true;
+    $("#esitoProgetto").textContent="";
+  };
   $("#btnScegliPdf").onclick=()=>$("#filePdf").click();
   $("#filePdf").onchange=e=>{ caricaPdf(e.target.files[0]); e.target.value=""; };
   const zona=$("#zonaPdf");
