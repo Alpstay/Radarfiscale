@@ -1398,12 +1398,18 @@ async function salva(){
       stato.voci.forEach(v=>{ const j=JSON.stringify(v); if(ultimo.voci[v.id]!==j){ upd[FIREBASE_NODO+"/voci/"+v.id]=JSON.parse(j); ultimo.voci[v.id]=j; } });
       (stato.progetti||[]).forEach(p=>{ const j=JSON.stringify(p); if(ultimo.progetti[p.id]!==j){ upd[FIREBASE_NODO+"/progetti/"+p.id]=JSON.parse(j); ultimo.progetti[p.id]=j; } });
       (stato.questioni||[]).forEach(q=>{ const j=JSON.stringify(q); if(ultimo.questioni[q.id]!==j){ upd[FIREBASE_NODO+"/questioni/"+q.id]=JSON.parse(j); ultimo.questioni[q.id]=j; } });
-      const updB={};
-      (stato.bilanci||[]).forEach(b=>{ const j=JSON.stringify(pulisciBilancio(b)); if(ultimo.bilanci[b.id]!==j){ updB[FIREBASE_NODO+"/bilanci/"+b.id]=JSON.parse(j); ultimo.bilanci[b.id]=j; } });
-      Object.keys(ultimo.bilanci).forEach(id=>{ if(!(stato.bilanci||[]).some(b=>b.id===id)){ updB[FIREBASE_NODO+"/bilanci/"+id]=null; delete ultimo.bilanci[id]; } });
-      if(Object.keys(updB).length){
-        try{ await db.ref().update(updB); }
-        catch(e){ Object.keys(updB).forEach(k=>delete ultimo.bilanci[k.split("/").pop()]); mostraErroreSalvataggio("bilanci: "+(e.message||e)); throw e; }
+      for(const b of (stato.bilanci||[])){
+        const pulito=JSON.parse(JSON.stringify(pulisciBilancio(b))); const j=JSON.stringify(pulito);
+        if(ultimo.bilanci[b.id]===j) continue;
+        const percorso=FIREBASE_NODO+"/bilanci/"+String(b.id).replace(/[.#$\[\]\/]/g,"_");
+        try{ await db.ref(percorso).set(pulito); ultimo.bilanci[b.id]=j; ultimoPercorsoBilancio=percorso; }
+        catch(e){ mostraErroreSalvataggio("bilancio "+(b.esercizio||b.id)+" su "+percorso+": "+(e.message||e)); throw e; }
+      }
+      for(const id of Object.keys(ultimo.bilanci)){
+        if(!(stato.bilanci||[]).some(b=>b.id===id)){
+          try{ await db.ref(FIREBASE_NODO+"/bilanci/"+id).remove(); delete ultimo.bilanci[id]; }
+          catch(e){ mostraErroreSalvataggio("eliminazione bilancio: "+(e.message||e)); throw e; }
+        }
       }
       const f=codFatte(stato.fatte), jf=JSON.stringify(f); if(jf!==ultimo.fatte){ upd[FIREBASE_NODO+"/fatte"]=Object.keys(f).length?f:null; ultimo.fatte=jf; }
       const jn=JSON.stringify(stato.note||{}); if(jn!==ultimo.note){ upd[FIREBASE_NODO+"/note"]=Object.keys(stato.note||{}).length?stato.note:null; ultimo.note=jn; }
@@ -1419,6 +1425,7 @@ async function salva(){
     else if(memoriaBrowser) memoriaBrowser.setItem(CHIAVE, JSON.stringify(stato));
   }catch(e){ console.error("Salvataggio non riuscito", e); if(!FIREBASE_ATTIVO) mostraErroreSalvataggio(e.message||String(e)); }
 }
+let ultimoPercorsoBilancio="";
 function pulisciBilancio(b){
   const o={};
   Object.keys(b).forEach(k=>{ const v=b[k]; o[k]=(v===undefined||(typeof v==="number"&&!isFinite(v)))?null:v; });
@@ -1977,15 +1984,18 @@ async function salvaBilancio(){
   stato.bilanci=(stato.bilanci||[]).filter(b=>b.id!==nuovo.id).concat([pulisciBilancio(nuovo)]);
   try{ await salva(); }
   catch(e){ es.className="esito errore"; es.textContent="Non salvato sul database: "+(e.message||e)+". Correggi e riprova."; return; }
+  let verifica="";
   if(FIREBASE_ATTIVO){
     try{
-      const snap=await db.ref(FIREBASE_NODO+"/bilanci/"+nuovo.id).get();
-      if(!snap.exists()) throw new Error("il database non lo restituisce");
-    }catch(e){ es.className="esito errore"; es.textContent="Salvataggio non confermato dal database: "+(e.message||e); return; }
+      let snap=await db.ref(FIREBASE_NODO+"/bilanci/"+nuovo.id).once("value");
+      let ok=snap&&snap.exists();
+      if(!ok){ const tutti=await db.ref(FIREBASE_NODO+"/bilanci").once("value"); const v=tutti&&tutti.val(); ok=!!(v&&v[nuovo.id]); if(!ok) console.warn("bilanci nel database:",v); }
+      verifica= ok ? " e confermato dal database condiviso ("+ultimoPercorsoBilancio+")." : ". Attenzione: scritto su "+ultimoPercorsoBilancio+" senza errori, ma la rilettura non lo trova: controlla in Firebase e segnala questo messaggio.";
+    }catch(e){ verifica=". Scritto, ma la verifica in lettura ha dato errore: "+(e.message||e); }
   }
   disegnaBilanci();
   $("#moduloBilancio").hidden=true; bilancioInModifica=null;
-  $("#esitoLetturaBilancio").className="esito"; $("#esitoLetturaBilancio").textContent="Bilancio "+nuovo.esercizio+" salvato"+(FIREBASE_ATTIVO?" e confermato dal database condiviso.":".");
+  $("#esitoLetturaBilancio").className="esito"+(verifica.includes("Attenzione")||verifica.includes("errore")?" errore":""); $("#esitoLetturaBilancio").textContent="Bilancio "+nuovo.esercizio+" salvato"+(verifica||".");
 }
 async function estraiBilancioDaTesto(testo,fonte){
   const pezzi=spezza(testo,8000).slice(0,6);
