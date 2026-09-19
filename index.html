@@ -196,6 +196,17 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
   .risposta-mentor h4{margin:12px 0 4px;font-size:13px;color:var(--oro);font-weight:700}
   .risposta-mentor p.breve{font-size:17px;margin:0;max-width:70ch}
   .risposta-mentor ul{margin:2px 0 0;padding-left:18px;font-size:14.5px}
+  .risposta-mentor h4{counter-increment:sez}
+  .risposta-mentor h4::before{content:counter(sez) " · ";color:var(--nero)}
+  .risposta-mentor{counter-reset:sez}
+  .esempio-saslong{border:1px solid var(--oro);background:#FDF9EE;padding:12px 14px;margin:6px 0 4px;font-size:15px;max-width:72ch}
+  .esempio-saslong b{display:block;font-size:12px;color:var(--oro);margin-bottom:4px}
+  .numeri-chiave{font-size:13.5px;color:var(--grigio);margin:0 0 10px}
+  table.bilanci{border-collapse:collapse;width:100%;font-size:14px;margin-top:10px}
+  table.bilanci th,table.bilanci td{border-bottom:1px solid var(--linea);padding:6px 8px;text-align:right;white-space:nowrap}
+  table.bilanci th:first-child,table.bilanci td:first-child{text-align:left;white-space:normal}
+  table.bilanci th{font-weight:700;color:var(--grigio);font-size:12.5px}
+  .scorri{overflow-x:auto}
   .avvertenza{font-size:12.5px;color:var(--grigio);border-top:1px dotted var(--linea);margin-top:12px;padding-top:8px}
   #accesso{position:fixed;inset:0;background:var(--bianco);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
   #accesso[hidden]{display:none}
@@ -229,7 +240,7 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
       <div class="oggi"><span id="dataOggi"></span><span class="utente" id="utenteAttivo" hidden> · <span id="utenteEmail"></span> <button class="bottone piccolo" id="btnEsci">Esci</button></span></div>
     </div>
     <nav>
-      <button data-vista="cruscotto" class="attivo">Cosa scade adesso<span class="pallino" id="badgeAllerte" hidden></span></button>
+      <button data-vista="cruscotto" class="attivo">Cosa scade adesso<span class="pallino" id="badgeAllerte" hidden></span><span class="pallino" id="badgeNovita" hidden style="background:var(--oro)"></span></button>
       <button data-vista="progetti">Progetti e mentor</button>
       <button data-vista="scadenzario">Scadenzario</button>
       <button data-vista="archivio">Archivio</button>
@@ -268,6 +279,7 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
     <h2 class="titolo-sez">Chiedi al mentor</h2>
     <p class="intro-sez">Scrivi come parleresti a un consulente: un investimento, un'assunzione, un contratto, un dubbio. Risponde con il profilo della Saslong, l'archivio delle norme e i progetti in corso come contesto, e finisce sempre con le domande da fare allo studio.</p>
     <div class="modulo">
+      <p class="numeri-chiave" id="numeriChiave"></p>
       <textarea class="incolla" id="domandaMentor" style="min-height:90px" placeholder="Es. Vorremmo comprare un furgone elettrico da 60.000 euro in primavera: conviene? Che cosa dobbiamo sapere prima di ordinarlo?"></textarea>
       <div class="azioni-riga"><button class="bottone oro" id="btnMentor">Chiedi al mentor</button><button class="bottone piccolo" id="btnMentorReset">Nuova conversazione</button><span class="esito" id="esitoMentor"></span></div>
       <div id="rispostaMentor"></div>
@@ -292,6 +304,27 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
       <div class="azioni-riga"><button class="bottone oro" id="btnSalvaProgetto">Salva progetto</button><button class="bottone piccolo" id="btnAnnullaProgetto">Annulla</button><span class="esito" id="esitoProgetto"></span></div>
     </div>
     <div id="listaProgetti" style="margin-top:18px"></div>
+
+    <h2 class="titolo-sez">Bilanci della Saslong Srl</h2>
+    <p class="intro-sez">Carica il bilancio di ogni esercizio in PDF: la pagina ne estrae le cifre chiave, tu le controlli e le salvi. Nel database restano solo i numeri, non il documento. Il mentor e la lettura delle circolari usano gli ultimi tre esercizi per fare esempi sui vostri numeri veri.</p>
+    <div class="modulo">
+      <div class="zona-pdf" id="zonaBilancio">
+        <input type="file" id="fileBilancio" accept="application/pdf,.pdf" hidden>
+        <button class="bottone oro" id="btnScegliBilancio">Carica un bilancio (PDF)</button>
+        <span id="statoBilancio">oppure trascina qui il file, oppure inserisci i numeri a mano</span>
+        <button class="bottone piccolo" id="btnBilancioManuale">Inserisci a mano</button>
+      </div>
+      <div id="moduloBilancio" hidden>
+        <div class="griglia" id="campiBilancio"></div>
+        <div class="azioni-riga"><button class="bottone oro" id="btnSalvaBilancio">Salva bilancio</button><button class="bottone piccolo" id="btnAnnullaBilancio">Annulla</button><span class="esito" id="esitoBilancio"></span></div>
+      </div>
+      <div class="esito" id="esitoLetturaBilancio"></div>
+    </div>
+    <div class="scorri" id="tabellaBilanci"></div>
+
+    <h2 class="titolo-sez">Domande fatte al mentor</h2>
+    <p class="intro-sez">Ogni domanda resta qui come questione aperta e viene confrontata con le circolari future. Chiudila quando la risposta dello studio è arrivata o non serve più.</p>
+    <div id="listaQuestioni"></div>
   </section>
 
   <!-- ============ SCADENZARIO ============ -->
@@ -403,6 +436,7 @@ const FIREBASE_NODO = "radarFiscale";   // ramo del database riservato a questa 
         <div><label for="lTelefono">Telefono</label><input id="lTelefono"></div>
         <div><label for="lStudio">Studio destinatario</label><input id="lStudio" placeholder="Es. Studio Rossi, dott. Mario Rossi"></div>
         <div><label for="lEmailStudio">E-mail dello studio</label><input id="lEmailStudio" placeholder="studio@esempio.it"></div>
+        <div><label for="lEmailAvvisi">E-mail dell'ufficio per gli avvisi</label><input id="lEmailAvvisi" placeholder="info@saslong.eu"></div>
       </div>
       <div class="azioni-riga"><button class="bottone piccolo" id="btnSalvaLettera">Salva</button></div>
     </div>
@@ -1295,6 +1329,8 @@ const PROGETTI_BASE = [
 ];
 function unisciProgetti(){
   if(!Array.isArray(stato.progetti)) stato.progetti=[];
+  if(!Array.isArray(stato.questioni)) stato.questioni=[];
+  if(!Array.isArray(stato.bilanci)) stato.bilanci=[];
   const presenti=new Set(stato.progetti.map(p=>p.id));
   PROGETTI_BASE.forEach(p=>{ if(!presenti.has(p.id)) stato.progetti.push(JSON.parse(JSON.stringify(p))); });
 }
@@ -1305,7 +1341,7 @@ function unisciProgetti(){
 const CHIAVE = "alpstay-radar-fiscale-v1";
 const PROXY_DEFAULT = "https://radarfiscale.ezioprinoth.workers.dev";
 const LETTERA_DEFAULT = { azienda:"Saslong Srl – Smart Hotel Saslong", indirizzo:"Via Rezia 308, Ortisei (BZ)", referente:"", email:"info@saslong.eu", telefono:"+39 0471 774444", studio:"Spett.le Studio Alber Flaim – Bolzano", emailStudio:"" };
-let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:PROXY_DEFAULT,chiave:""}, progetti:[] };
+let stato = { voci:[], fatte:{}, note:{}, preavviso:30, profilo:PROFILO_DEFAULT, lettera:{...LETTERA_DEFAULT}, lettura:{proxy:PROXY_DEFAULT,chiave:""}, progetti:[], questioni:[], bilanci:[] };
 let memoriaAttiva = true;
 // Ordine: Firebase (archivio condiviso) > window.storage dentro Claude > memoria del browser.
 const dentroClaude = typeof window.storage !== "undefined";
@@ -1314,7 +1350,7 @@ let memoriaBrowser = null;
 try{ memoriaBrowser = window.localStorage; memoriaBrowser.getItem(CHIAVE); }catch(e){ memoriaBrowser=null; }
 let db=null, utente=null;
 const CHIAVE_LETTURA_LOCALE = CHIAVE+"-chiave-lettura";   // la chiave API non va mai nel database condiviso
-let ultimo = { voci:{}, progetti:{}, fatte:"", note:"", imp:"" };     // ultimo stato scritto su Firebase, per inviare solo le differenze
+let ultimo = { voci:{}, progetti:{}, questioni:{}, bilanci:{}, fatte:"", note:"", imp:"" };     // ultimo stato scritto su Firebase, per inviare solo le differenze
 
 const codFatte = o => Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k.replace(/#/g,"__"),v]));
 const decFatte = o => Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k.replace(/__/g,"#"),v]));
@@ -1326,13 +1362,17 @@ function statoDaSnapshot(d){
   d=d||{};
   const voci=Object.values(d.voci||{}).sort((a,b)=>String(a.titolo).localeCompare(String(b.titolo)));
   const progetti=Object.values(d.progetti||{}).sort((a,b)=>String(a.creato||"").localeCompare(String(b.creato||"")));
+  const questioni=Object.values(d.questioni||{}).sort((a,b)=>String(a.data||"").localeCompare(String(b.data||"")));
+  const bilanci=Object.values(d.bilanci||{}).sort((a,b)=>String(a.chiusura||"").localeCompare(String(b.chiusura||"")));
   const imp=d.impostazioni||{};
-  return { voci, progetti, fatte:decFatte(d.fatte), note:d.note||{}, preavviso:imp.preavviso||30, profilo:imp.profilo||"",
+  return { voci, progetti, questioni, bilanci, fatte:decFatte(d.fatte), note:d.note||{}, preavviso:imp.preavviso||30, profilo:imp.profilo||"",
            profiloVersione:imp.profiloVersione||1, lettera:imp.lettera||{}, lettura:{proxy:(imp.lettura&&imp.lettura.proxy)||"", chiave:""} };
 }
 function aggiornaUltimo(){
   ultimo.voci={}; stato.voci.forEach(v=>ultimo.voci[v.id]=JSON.stringify(v));
   ultimo.progetti={}; (stato.progetti||[]).forEach(p=>ultimo.progetti[p.id]=JSON.stringify(p));
+  ultimo.questioni={}; (stato.questioni||[]).forEach(q=>ultimo.questioni[q.id]=JSON.stringify(q));
+  ultimo.bilanci={}; (stato.bilanci||[]).forEach(b=>ultimo.bilanci[b.id]=JSON.stringify(b));
   ultimo.fatte=JSON.stringify(codFatte(stato.fatte)); ultimo.note=JSON.stringify(stato.note||{}); ultimo.imp=JSON.stringify(impostazioniDaStato());
 }
 
@@ -1357,16 +1397,38 @@ async function salva(){
       const upd={};
       stato.voci.forEach(v=>{ const j=JSON.stringify(v); if(ultimo.voci[v.id]!==j){ upd[FIREBASE_NODO+"/voci/"+v.id]=JSON.parse(j); ultimo.voci[v.id]=j; } });
       (stato.progetti||[]).forEach(p=>{ const j=JSON.stringify(p); if(ultimo.progetti[p.id]!==j){ upd[FIREBASE_NODO+"/progetti/"+p.id]=JSON.parse(j); ultimo.progetti[p.id]=j; } });
+      (stato.questioni||[]).forEach(q=>{ const j=JSON.stringify(q); if(ultimo.questioni[q.id]!==j){ upd[FIREBASE_NODO+"/questioni/"+q.id]=JSON.parse(j); ultimo.questioni[q.id]=j; } });
+      const updB={};
+      (stato.bilanci||[]).forEach(b=>{ const j=JSON.stringify(pulisciBilancio(b)); if(ultimo.bilanci[b.id]!==j){ updB[FIREBASE_NODO+"/bilanci/"+b.id]=JSON.parse(j); ultimo.bilanci[b.id]=j; } });
+      Object.keys(ultimo.bilanci).forEach(id=>{ if(!(stato.bilanci||[]).some(b=>b.id===id)){ updB[FIREBASE_NODO+"/bilanci/"+id]=null; delete ultimo.bilanci[id]; } });
+      if(Object.keys(updB).length){
+        try{ await db.ref().update(updB); }
+        catch(e){ Object.keys(updB).forEach(k=>delete ultimo.bilanci[k.split("/").pop()]); mostraErroreSalvataggio("bilanci: "+(e.message||e)); throw e; }
+      }
       const f=codFatte(stato.fatte), jf=JSON.stringify(f); if(jf!==ultimo.fatte){ upd[FIREBASE_NODO+"/fatte"]=Object.keys(f).length?f:null; ultimo.fatte=jf; }
       const jn=JSON.stringify(stato.note||{}); if(jn!==ultimo.note){ upd[FIREBASE_NODO+"/note"]=Object.keys(stato.note||{}).length?stato.note:null; ultimo.note=jn; }
       const imp=impostazioniDaStato(), ji=JSON.stringify(imp); if(ji!==ultimo.imp){ upd[FIREBASE_NODO+"/impostazioni"]=imp; ultimo.imp=ji; }
-      if(Object.keys(upd).length) await db.ref().update(upd);
+      if(Object.keys(upd).length){
+        try{ await db.ref().update(upd); }
+        catch(e){ mostraErroreSalvataggio(e.message||String(e)); throw e; }
+      }
       if(memoriaBrowser) memoriaBrowser.setItem(CHIAVE_LETTURA_LOCALE,(stato.lettura&&stato.lettura.chiave)||"");
       return;
     }
     if(dentroClaude) await window.storage.set(CHIAVE, JSON.stringify(stato), false);
     else if(memoriaBrowser) memoriaBrowser.setItem(CHIAVE, JSON.stringify(stato));
-  }catch(e){ console.error("Salvataggio non riuscito", e); }
+  }catch(e){ console.error("Salvataggio non riuscito", e); if(!FIREBASE_ATTIVO) mostraErroreSalvataggio(e.message||String(e)); }
+}
+function pulisciBilancio(b){
+  const o={};
+  Object.keys(b).forEach(k=>{ const v=b[k]; o[k]=(v===undefined||(typeof v==="number"&&!isFinite(v)))?null:v; });
+  return o;
+}
+function mostraErroreSalvataggio(msg){
+  let a=document.getElementById("erroreSalvataggio");
+  if(!a){ a=document.createElement("div"); a.id="erroreSalvataggio"; a.className="avviso-memoria"; a.style.borderColor="var(--scaduta)"; a.style.color="var(--scaduta)"; document.querySelector("main").prepend(a); }
+  a.textContent="Salvataggio sul database non riuscito ("+msg+"). I dati mostrati potrebbero non essere condivisi: ricarica la pagina e riprova; se l'errore resta, segnala questo messaggio.";
+  a.onclick=()=>a.remove();
 }
 
 /* --- accesso e aggiornamento in tempo reale --- */
@@ -1390,12 +1452,14 @@ function attendiAccesso(){
 function ascoltaRemoto(){
   db.ref(FIREBASE_NODO).on("value",snap=>{
     const r=statoDaSnapshot(snap.val());
-    const firmaR=JSON.stringify([r.voci.map(v=>JSON.stringify(v)).sort(),r.progetti.map(p=>JSON.stringify(p)).sort(),codFatte(r.fatte),r.note,{p:r.preavviso,pr:r.profilo,l:r.lettera,x:r.lettura.proxy}]);
-    const firmaL=JSON.stringify([stato.voci.map(v=>JSON.stringify(v)).sort(),(stato.progetti||[]).map(p=>JSON.stringify(p)).sort(),codFatte(stato.fatte),stato.note||{},{p:stato.preavviso,pr:stato.profilo,l:stato.lettera,x:(stato.lettura||{}).proxy||""}]);
+    const firmaR=JSON.stringify([r.voci.map(v=>JSON.stringify(v)).sort(),r.progetti.map(p=>JSON.stringify(p)).sort(),r.questioni.map(q=>JSON.stringify(q)).sort(),r.bilanci.map(b=>JSON.stringify(b)).sort(),codFatte(r.fatte),r.note,{p:r.preavviso,pr:r.profilo,l:r.lettera,x:r.lettura.proxy}]);
+    const firmaL=JSON.stringify([stato.voci.map(v=>JSON.stringify(v)).sort(),(stato.progetti||[]).map(p=>JSON.stringify(p)).sort(),(stato.questioni||[]).map(q=>JSON.stringify(q)).sort(),(stato.bilanci||[]).map(b=>JSON.stringify(b)).sort(),codFatte(stato.fatte),stato.note||{},{p:stato.preavviso,pr:stato.profilo,l:stato.lettera,x:(stato.lettura||{}).proxy||""}]);
     if(firmaR===firmaL) return;
     if(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("nota")) return; // qualcuno sta scrivendo: rimando
     const chiave=(stato.lettura||{}).chiave||"";
+    const localiNonSalvati=(stato.bilanci||[]).filter(b=>!r.bilanci.some(x=>x.id===b.id) && !ultimo.bilanci[b.id]);
     stato={...stato,...r, lettura:{proxy:r.lettura.proxy,chiave}};
+    if(localiNonSalvati.length) stato.bilanci=stato.bilanci.concat(localiNonSalvati);
     if(!stato.profilo) stato.profilo=PROFILO_DEFAULT;
     completaVoci(); aggiornaUltimo(); ridisegnaTutto();
     $("#giorniPreavviso").value=stato.preavviso; $("#profiloAzienda").value=stato.profilo;
@@ -1509,8 +1573,44 @@ function disegnaCruscotto(){
   const urgenti=allerte.filter(s=>s.giorni<=stato.preavviso).length;
   badge.hidden=urgenti===0; badge.textContent=urgenti;
 
+  disegnaNovitaMirate();
   disegnaMosse();
   collegaBottoni(box.parentElement);
+}
+
+/* --- novità che toccano progetti o domande al mentor --- */
+function novitaMirate(){ return stato.voci.filter(v=>v.nuovaPer && !v.notificaVista && v.stato!=="chiusa"); }
+function testoQuestione(id){ const q=(stato.questioni||[]).find(x=>x.id===id); return q?(q.domanda.length>70?q.domanda.slice(0,67)+"…":q.domanda):id; }
+function testoQuestioniPerPrompt(){
+  const ap=(stato.questioni||[]).filter(q=>q.stato!=="chiusa");
+  return ap.length ? ap.map(q=>q.id+": "+q.domanda.replace(/\s+/g," ").slice(0,160)).join("; ") : "nessuna";
+}
+function disegnaNovitaMirate(){
+  let box=$("#listaNovitaMirate");
+  if(!box){
+    const sez=$("#vista-cruscotto"); const h=document.createElement("div"); h.id="blocco-novita";
+    h.innerHTML='<h2 class="titolo-sez">Novità sui tuoi progetti e sulle domande al mentor</h2><p class="intro-sez">Ogni circolare viene confrontata con i progetti aperti e con le domande che avete fatto al mentor. Quello che le riguarda compare qui finché non lo segni come visto.</p><div id="listaNovitaMirate"></div>';
+    const ancora=sez.querySelectorAll(".titolo-sez")[1]; sez.insertBefore(h,ancora);
+    box=$("#listaNovitaMirate");
+  }
+  const nov=novitaMirate();
+  const badge=$("#badgeNovita"); if(badge){ badge.hidden=!nov.length; badge.textContent=nov.length; }
+  box.innerHTML = nov.length ? nov.map(v=>'<div class="allerta prossima">'+
+      '<div class="allerta-testa"><span class="verdetto '+(v.verdetto||"sapere")+'">'+(VERDETTI[v.verdetto]||VERDETTI.sapere).etichetta+"</span><span class=\"data-sc\">"+esc(v.fonte||"")+"</span></div>"+
+      "<h4>"+esc(v.titolo)+"</h4>"+
+      (v.progetti&&v.progetti.length?'<p style="color:var(--oro)">Tocca il progetto: '+esc(v.progetti.map(nomeProgetto).join(", "))+"</p>":"")+
+      (v.questioni&&v.questioni.length?'<p style="color:var(--oro)">Risponde alla domanda: '+esc(v.questioni.map(testoQuestione).join(" | "))+"</p>":"")+
+      '<p class="in-pratica">'+esc(v.inPratica||v.azione||"")+"</p>"+
+      '<div class="azioni-riga"><button class="bottone piccolo" data-apri="'+v.id+'">Apri la scheda</button><button class="bottone piccolo" data-vista-notifica="'+v.id+'">Visto</button></div></div>').join("")
+    : '<p class="vuoto">Nessuna novità mirata al momento. Le domande fatte al mentor e i progetti registrati vengono controllati a ogni circolare caricata.</p>';
+  box.querySelectorAll("[data-vista-notifica]").forEach(b=>b.onclick=async()=>{ const v=stato.voci.find(x=>x.id===b.dataset.vistaNotifica); if(v){ v.notificaVista=true; await salva(); disegnaCruscotto(); } });
+}
+function mailAvviso(voci){
+  const L={...LETTERA_DEFAULT,...(stato.lettera||{})};
+  const corpo="Radar fiscale Saslong: "+voci.length+" novità della circolare appena archiviata riguardano cose che abbiamo in programma o che abbiamo chiesto al mentor.\n\n"+
+    voci.map(v=>"• "+v.titolo+"\n  "+(v.inPratica||"")+(v.progetti&&v.progetti.length?"\n  Progetto: "+v.progetti.map(nomeProgetto).join(", "):"")+(v.questioni&&v.questioni.length?"\n  Domanda: "+v.questioni.map(testoQuestione).join(" | "):"")).join("\n\n")+
+    "\n\nDettagli su https://alpstay.github.io/Radarfiscale/ (Cosa scade adesso → Novità sui tuoi progetti).";
+  window.location.href="mailto:"+encodeURIComponent(L.emailAvvisi||L.email||"")+"?subject="+encodeURIComponent("Radar fiscale: novità su progetti e domande aperte")+"&body="+encodeURIComponent(corpo);
 }
 
 function prossimaScadenza(v){
@@ -1595,6 +1695,7 @@ function schedaVoce(v){
     (v.esempio?'<p class="per-esempio">Per esempio: '+esc(v.esempio)+"</p>":"")+
     (v.chi?'<p class="chi">Chi se ne occupa: '+esc(v.chi)+"</p>":"")+
     (v.progetti&&v.progetti.length?'<p class="chi" style="color:var(--oro)">Tocca il progetto: '+esc(v.progetti.map(nomeProgetto).join(", "))+"</p>":"")+
+    (v.questioni&&v.questioni.length?'<p class="chi" style="color:var(--oro)">Risponde alla domanda: '+esc(v.questioni.map(testoQuestione).join(" | "))+"</p>":"")+
     '<p class="rif" style="margin-top:8px">'+esc(v.riferimento||"")+"</p>"+
     '<p class="rif">'+esc(v.fonte||"")+"</p>"+
     "<div>"+cat+'<span class="tag">rilevanza '+esc(v.rilevanza)+"</span></div>"+
@@ -1689,6 +1790,8 @@ function collegaBottoni(radice){
 function ridisegnaTutto(){
   aggiornaFiltroCategorie();
   disegnaProgetti();
+  disegnaQuestioni();
+  disegnaBilanci();
   disegnaCruscotto();
   disegnaScadenzario();
   disegnaArchivio();
@@ -1789,10 +1892,133 @@ function disegnaProgetti(){
   box.querySelectorAll("[data-stato-progetto]").forEach(s=>s.onchange=async()=>{ const p=stato.progetti.find(x=>x.id===s.dataset.statoProgetto); if(p){ p.stato=s.value; await salva(); disegnaProgetti(); } });
   box.querySelectorAll("[data-nota-progetto]").forEach(t=>{ let timer; t.oninput=()=>{ clearTimeout(timer); timer=setTimeout(async()=>{ const p=stato.progetti.find(x=>x.id===t.dataset.notaProgetto); if(p){ p.note=t.value; await salva(); } },500); }; });
 }
+function disegnaQuestioni(){
+  const box=$("#listaQuestioni"); if(!box) return;
+  const lista=(stato.questioni||[]).slice().sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+  if(!lista.length){ box.innerHTML='<p class="vuoto">Nessuna domanda ancora. Le domande fatte al mentor compaiono qui.</p>'; return; }
+  box.innerHTML=lista.map(q=>{
+    const risposte=stato.voci.filter(v=>(v.questioni||[]).includes(q.id));
+    return '<div class="allerta '+(q.stato==="chiusa"?"":"prossima")+'"><div class="allerta-testa"><span class="data-sc">'+dataEstesa(q.data)+(q.stato==="chiusa"?" · chiusa":" · aperta")+"</span></div>"+
+      '<h4 class="'+(q.stato==="chiusa"?"fatta":"")+'">'+esc(q.domanda)+"</h4>"+
+      (q.inBreve?'<p style="color:var(--grigio)">'+esc(q.inBreve)+"</p>":"")+
+      (risposte.length?'<p style="color:var(--oro)">Novità collegate: '+risposte.map(v=>'<button class="bottone piccolo" style="margin:2px 6px 2px 0" data-apri="'+v.id+'">'+esc(v.titolo)+"</button>").join("")+"</p>":"")+
+      '<div class="azioni-riga"><button class="bottone piccolo" data-chiudi-questione="'+q.id+'">'+(q.stato==="chiusa"?"Riapri":"Chiudi")+"</button></div></div>";
+  }).join("");
+  box.querySelectorAll("[data-apri]").forEach(b=>b.onclick=()=>{ mostraVista("archivio"); apriVoce(b.dataset.apri); });
+  box.querySelectorAll("[data-chiudi-questione]").forEach(b=>b.onclick=async()=>{ const q=stato.questioni.find(x=>x.id===b.dataset.chiudiQuestione); if(q){ q.stato=q.stato==="chiusa"?"aperta":"chiusa"; await salva(); disegnaQuestioni(); } });
+}
 function briefingStudio(){
   const ap=(stato.progetti||[]).filter(p=>p.stato!=="fatto"&&p.stato!=="sospeso");
   if(!ap.length){ alert("Nessun progetto aperto da mandare allo studio."); return; }
   scaricaPdfDomande(ap.map(voceDaProgetto));
+}
+
+/* --- bilanci --- */
+const CAMPI_BILANCIO=[
+  ["esercizio","Esercizio (es. 2024/25)","testo"],["chiusura","Data di chiusura","data"],
+  ["ricavi","Ricavi delle vendite e prestazioni","n"],["altriRicavi","Altri ricavi e proventi (contributi compresi)","n"],
+  ["costiMaterie","Costi per materie prime e merci","n"],["costiServizi","Costi per servizi","n"],["godimentoTerzi","Godimento beni di terzi (affitti, leasing)","n"],
+  ["costoPersonale","Costo del personale","n"],["ammortamenti","Ammortamenti e svalutazioni","n"],
+  ["risultatoOperativo","Differenza fra valore e costi della produzione (A-B)","n"],["oneriFinanziari","Interessi e oneri finanziari","n"],
+  ["risultatoAnteImposte","Risultato prima delle imposte","n"],["imposte","Imposte sul reddito (IRES + IRAP)","n"],["utileNetto","Utile (perdita) dell'esercizio","n"],
+  ["immobilizzazioniMateriali","Immobilizzazioni materiali nette","n"],["patrimonioNetto","Patrimonio netto","n"],
+  ["debitiBanche","Debiti verso banche","n"],["liquidita","Disponibilità liquide","n"],["creditiTributari","Crediti tributari (IVA compresa)","n"],["debitiTributari","Debiti tributari","n"],
+  ["dipendentiMedi","Dipendenti medi","n"]
+];
+const fmtN=n=>(n==null||n===""||isNaN(Number(n)))?"—":Number(n).toLocaleString("it-IT",{maximumFractionDigits:0});
+function ebitda(b){ const r=Number(b.risultatoOperativo), a=Number(b.ammortamenti); return (isNaN(r)||isNaN(a))?null:r+a; }
+function bilanciRecenti(n){ return (stato.bilanci||[]).slice().sort((a,b)=>String(b.chiusura||"").localeCompare(String(a.chiusura||""))).slice(0,n||3); }
+function testoBilanciPerPrompt(){
+  const bb=bilanciRecenti(3);
+  if(!bb.length) return "nessun bilancio caricato: usa gli ordini di grandezza del profilo";
+  return bb.map(b=>{
+    const e=ebitda(b);
+    return "Esercizio "+(b.esercizio||b.chiusura)+" (chiuso il "+(b.chiusura||"?")+"): ricavi "+fmtN(b.ricavi)+"; altri ricavi "+fmtN(b.altriRicavi)+"; materie "+fmtN(b.costiMaterie)+"; servizi "+fmtN(b.costiServizi)+"; affitti e godimento beni di terzi "+fmtN(b.godimentoTerzi)+"; personale "+fmtN(b.costoPersonale)+"; ammortamenti "+fmtN(b.ammortamenti)+"; EBITDA "+fmtN(e)+"; risultato operativo "+fmtN(b.risultatoOperativo)+"; oneri finanziari "+fmtN(b.oneriFinanziari)+"; ante imposte "+fmtN(b.risultatoAnteImposte)+"; imposte "+fmtN(b.imposte)+"; utile netto "+fmtN(b.utileNetto)+"; immobilizzazioni materiali nette "+fmtN(b.immobilizzazioniMateriali)+"; patrimonio netto "+fmtN(b.patrimonioNetto)+"; debiti banche "+fmtN(b.debitiBanche)+"; liquidità "+fmtN(b.liquidita)+"; crediti tributari "+fmtN(b.creditiTributari)+"; debiti tributari "+fmtN(b.debitiTributari)+"; dipendenti medi "+fmtN(b.dipendentiMedi)+" (tutto in euro)";
+  }).join("\n");
+}
+function disegnaNumeriChiave(){
+  const el=$("#numeriChiave"); if(!el) return;
+  const b=bilanciRecenti(1)[0];
+  el.textContent = b ? "Numeri di riferimento, esercizio "+(b.esercizio||b.chiusura)+": ricavi "+fmtN(b.ricavi)+" · EBITDA "+fmtN(ebitda(b))+" · utile netto "+fmtN(b.utileNetto)+" · immobilizzazioni "+fmtN(b.immobilizzazioniMateriali)+" · banche "+fmtN(b.debitiBanche)+" euro. Il mentor ragiona su questi."
+                    : "Nessun bilancio caricato: il mentor usa gli ordini di grandezza del profilo (ricavi 5,5-6 milioni). Carica i bilanci qui sotto per esempi sui numeri veri.";
+}
+function disegnaBilanci(){
+  const box=$("#tabellaBilanci"); if(!box) return;
+  disegnaNumeriChiave();
+  const bb=(stato.bilanci||[]).slice().sort((a,b)=>String(a.chiusura||"").localeCompare(String(b.chiusura||"")));
+  if(!bb.length){ box.innerHTML='<p class="vuoto">Nessun bilancio ancora caricato.</p>'; return; }
+  const righe=CAMPI_BILANCIO.filter(c=>c[2]==="n").map(c=>"<tr><td>"+esc(c[1])+"</td>"+bb.map(b=>"<td>"+fmtN(b[c[0]])+"</td>").join("")+"</tr>").join("");
+  box.innerHTML='<table class="bilanci"><thead><tr><th>Voce (euro)</th>'+bb.map(b=>"<th>"+esc(b.esercizio||b.chiusura)+"</th>").join("")+"</tr></thead><tbody>"+righe+
+    "<tr><td><b>EBITDA (risultato operativo + ammortamenti)</b></td>"+bb.map(b=>"<td><b>"+fmtN(ebitda(b))+"</b></td>").join("")+"</tr>"+
+    "<tr><td>Fonte</td>"+bb.map(b=>'<td style="white-space:normal;font-size:12px;color:var(--grigio)">'+esc(b.fonte||"")+"</td>").join("")+"</tr>"+
+    "<tr><td></td>"+bb.map(b=>'<td><button class="bottone piccolo" data-mod-bilancio="'+b.id+'">Modifica</button> <button class="bottone piccolo" data-del-bilancio="'+b.id+'">Elimina</button></td>').join("")+"</tr></tbody></table>";
+  box.querySelectorAll("[data-mod-bilancio]").forEach(x=>x.onclick=()=>{ const b=stato.bilanci.find(y=>y.id===x.dataset.modBilancio); if(b) apriModuloBilancio(b); });
+  box.querySelectorAll("[data-del-bilancio]").forEach(x=>x.onclick=async()=>{ const b=stato.bilanci.find(y=>y.id===x.dataset.delBilancio); if(b&&confirm("Eliminare il bilancio "+(b.esercizio||b.chiusura)+"?")){ stato.bilanci=stato.bilanci.filter(y=>y.id!==b.id); await salva(); disegnaBilanci(); } });
+}
+let bilancioInModifica=null;
+function apriModuloBilancio(b){
+  bilancioInModifica=b||null;
+  const g=$("#campiBilancio");
+  g.innerHTML=CAMPI_BILANCIO.map(c=>'<div'+(c[0]==="esercizio"||c[0]==="chiusura"?"":"")+'><label for="b_'+c[0]+'">'+esc(c[1])+'</label><input id="b_'+c[0]+'" type="'+(c[2]==="data"?"date":c[2]==="n"?"number":"text")+'"'+(c[2]==="n"?' step="1"':"")+' value="'+esc(b&&b[c[0]]!=null?b[c[0]]:"")+'"></div>').join("")+
+    '<div class="larga"><label for="b_fonte">Fonte</label><input id="b_fonte" value="'+esc(b&&b.fonte||"")+'"></div>';
+  $("#moduloBilancio").hidden=false; $("#esitoBilancio").textContent="";
+  $("#moduloBilancio").scrollIntoView({block:"start"});
+}
+async function salvaBilancio(){
+  const es=$("#esitoBilancio");
+  const nuovo={ id:bilancioInModifica?bilancioInModifica.id:"bil-"+Date.now().toString(36), caricato:isoLocale(new Date()) };
+  CAMPI_BILANCIO.forEach(c=>{ const v=$("#b_"+c[0]).value.trim(); nuovo[c[0]]= c[2]==="n" ? (v===""?null:Number(v)) : v; });
+  nuovo.fonte=$("#b_fonte").value.trim();
+  if(!nuovo.esercizio && !nuovo.chiusura){ es.className="esito errore"; es.textContent="Indica almeno l'esercizio o la data di chiusura."; return; }
+  if(!nuovo.esercizio && nuovo.chiusura){ const a=Number(nuovo.chiusura.slice(0,4)); nuovo.esercizio=(a-1)+"/"+String(a).slice(2); }
+  if(nuovo.esercizio && !nuovo.chiusura){ const m=nuovo.esercizio.match(/(\d{4})\D+(\d{2,4})/); if(m){ const a=m[2].length===2?Number("20"+m[2]):Number(m[2]); nuovo.chiusura=a+"-10-31"; } }
+  const doppio=(stato.bilanci||[]).find(b=>b.id!==nuovo.id && b.esercizio===nuovo.esercizio);
+  if(doppio){ stato.bilanci=stato.bilanci.filter(b=>b.id!==doppio.id); }
+  stato.bilanci=(stato.bilanci||[]).filter(b=>b.id!==nuovo.id).concat([pulisciBilancio(nuovo)]);
+  try{ await salva(); }
+  catch(e){ es.className="esito errore"; es.textContent="Non salvato sul database: "+(e.message||e)+". Correggi e riprova."; return; }
+  if(FIREBASE_ATTIVO){
+    try{
+      const snap=await db.ref(FIREBASE_NODO+"/bilanci/"+nuovo.id).get();
+      if(!snap.exists()) throw new Error("il database non lo restituisce");
+    }catch(e){ es.className="esito errore"; es.textContent="Salvataggio non confermato dal database: "+(e.message||e); return; }
+  }
+  disegnaBilanci();
+  $("#moduloBilancio").hidden=true; bilancioInModifica=null;
+  $("#esitoLetturaBilancio").className="esito"; $("#esitoLetturaBilancio").textContent="Bilancio "+nuovo.esercizio+" salvato"+(FIREBASE_ATTIVO?" e confermato dal database condiviso.":".");
+}
+async function estraiBilancioDaTesto(testo,fonte){
+  const pezzi=spezza(testo,8000).slice(0,6);
+  const trovato={}; const chiavi=CAMPI_BILANCIO.map(c=>c[0]);
+  for(let i=0;i<pezzi.length;i++){
+    $("#statoBilancio").textContent="Estraggo le cifre… blocco "+(i+1)+" di "+pezzi.length;
+    const istruzioni="Questo è un pezzo del bilancio d'esercizio di una Srl italiana (schema civilistico: stato patrimoniale, conto economico, nota integrativa). Estrai SOLO i valori che compaiono in questo pezzo per l'ESERCIZIO PIÙ RECENTE (prima colonna), in euro interi senza separatori, e restituisci SOLO un oggetto JSON con queste chiavi (null se non presenti nel pezzo): "+
+      chiavi.map(k=>k+(k==="esercizio"?" (testo, es. 2024/25)":k==="chiusura"?" (data AAAA-MM-GG)":k==="dipendentiMedi"?" (numero)":"")).join(", ")+
+      ". Attenzione: costi e oneri come numeri positivi; utile o perdita con segno. Nessun testo fuori dal JSON.\n\nTESTO:\n"+pezzi[i];
+    try{
+      const r=await chiamaModello({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:istruzioni}]});
+      if(!r.ok) throw new Error("risposta "+r.status+": "+await leggiErroreApi(r));
+      const d=await r.json(); const t=(d.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+      const a=t.indexOf("{"), b=t.lastIndexOf("}"); if(a===-1) continue;
+      const o=JSON.parse(t.slice(a,b+1));
+      chiavi.forEach(k=>{ if(trovato[k]==null && o[k]!=null && o[k]!=="") trovato[k]=o[k]; });
+    }catch(e){ console.error("bilancio blocco",i+1,e); if(/non raggiunge|negato/.test(e.message)) throw e; }
+  }
+  trovato.fonte=fonte;
+  return trovato;
+}
+async function caricaBilancio(file){
+  const es=$("#esitoLetturaBilancio"), st=$("#statoBilancio");
+  if(!file) return;
+  if(!/\.pdf$/i.test(file.name) && file.type!=="application/pdf"){ es.className="esito errore"; es.textContent="Serve un file PDF."; return; }
+  es.className="esito"; es.textContent="";
+  try{
+    const {testo,pagine}=await estraiTestoPdf(file,(n,t)=>{ st.textContent="Lettura pagina "+n+" di "+t; });
+    if(testo.length<300) throw new Error("il PDF non contiene testo selezionabile (scansione): inserisci i numeri a mano");
+    const dati=await estraiBilancioDaTesto(testo,file.name.replace(/\.pdf$/i,"")+" ("+pagine+" pagine)");
+    st.textContent="Cifre estratte da "+file.name+": controllale e salva.";
+    apriModuloBilancio(dati);
+  }catch(e){ console.error(e); st.textContent="oppure trascina qui il file, oppure inserisci i numeri a mano"; es.className="esito errore"; es.textContent="Lettura del bilancio non riuscita: "+e.message; }
 }
 
 /* --- il mentor --- */
@@ -1809,11 +2035,16 @@ async function chiediAlMentor(){
 "Sei il consulente aziendale e fiscale di fiducia di questa azienda. Rispondi in italiano, concreto, con i numeri dell'azienda, senza teoria.\n\n"+
 "PROFILO DELL'AZIENDA:\n"+stato.profilo+"\n\n"+
 "PROGETTI APERTI: "+testoProgettiPerPrompt()+"\n\n"+
+"BILANCI DELLA SOCIETÀ (usa questi numeri per l'esempio pratico):\n"+testoBilanciPerPrompt()+"\n\n"+
 "NORME GIÀ IN ARCHIVIO (id, titolo, che cosa fare):\n"+archivioPerPrompt()+"\n\n"+
 (storia?storia+"\n\n":"")+
 "DOMANDA: "+q+"\n\n"+
-"Rispondi SOLO con un oggetto JSON valido, senza markdown, sotto le 380 parole in totale, con queste chiavi:\n"+
-"inBreve (2-3 frasi: il consiglio), cambia (array 2-4 punti: che cosa cambia su imposte, IVA, costi, cassa, con cifre), agevolazioni (array 0-3 punti: norme o incentivi in archivio che si agganciano, citando l'id fra parentesi quadre), rischi (array 1-3 punti: errori da evitare), decidere (array 1-3 punti: cosa decidere prima e in che ordine), domande (array 2-3 domande secche per il commercialista), progetto (null, oppure {titolo, descrizione, importo numero o null, dataInizio AAAA-MM-GG o null, dataFine o null} se la domanda descrive un progetto concreto non ancora in elenco).";
+"Rispondi SOLO con un oggetto JSON valido, senza markdown, sotto le 420 parole in totale. Ogni punto degli array è una frase sola, concreta, con cifre in euro dove possibile. Chiavi:\n"+
+"inBreve (2 frasi: il consiglio secco), "+
+"saslong ({esempio: un esempio pratico calcolato sui numeri di bilancio della società, massimo 60 parole; effetti: array di 2-3 punti con l'effetto in euro su imposte, IVA, cassa o utile}), "+
+"cambia (array 2-4 punti: che cosa cambia in generale), agevolazioni (array 0-3 punti: norme o incentivi in archivio che si agganciano, citando l'id fra parentesi quadre), "+
+"rischi (array 1-3 punti: errori da evitare), decidere (array 1-3 punti: cosa decidere prima e in che ordine), domande (array 2-3 domande secche per il commercialista), "+
+"progetto (null, oppure {titolo, descrizione, importo numero o null, dataInizio AAAA-MM-GG o null, dataFine o null} se la domanda descrive un progetto concreto non ancora in elenco).";
   try{
     const r=await chiamaModello({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:istruzioni}]});
     if(!r.ok) throw new Error("il servizio ha risposto "+r.status+": "+await leggiErroreApi(r));
@@ -1823,6 +2054,8 @@ async function chiediAlMentor(){
     if(a===-1) throw new Error("risposta non leggibile");
     let ris; try{ ris=JSON.parse(testo.slice(a,b+1)); }catch(e){ ris={inBreve:testo.slice(a)}; }
     conversazioneMentor.push({d:q,r:ris.inBreve||""});
+    stato.questioni.push({ id:"q-"+Date.now().toString(36), domanda:q, inBreve:ris.inBreve||"", data:isoLocale(new Date()), stato:"aperta" });
+    await salva(); disegnaQuestioni();
     mostraRispostaMentor(q,ris);
     es.textContent="";
   }catch(e){ es.className="esito errore"; es.textContent="Il mentor non ha risposto: "+e.message; }
@@ -1831,11 +2064,15 @@ async function chiediAlMentor(){
 function mostraRispostaMentor(domanda,ris){
   const lista=(arr,titolo)=>Array.isArray(arr)&&arr.length?"<h4>"+titolo+"</h4><ul>"+arr.map(x=>"<li>"+esc(x)+"</li>").join("")+"</ul>":"";
   const box=$("#rispostaMentor");
+  const sl=ris.saslong||{};
   const html='<div class="risposta-mentor">'+
     '<p class="rif" style="margin:0 0 6px">Domanda: '+esc(domanda)+"</p>"+
-    '<p class="breve">'+esc(ris.inBreve||"")+"</p>"+
+    "<h4>In breve</h4>"+'<p class="breve">'+esc(ris.inBreve||"")+"</p>"+
+    ((sl.esempio||(Array.isArray(sl.effetti)&&sl.effetti.length))?"<h4>Per la Saslong Srl, con i vostri numeri</h4>"+
+      (sl.esempio?'<div class="esempio-saslong"><b>Esempio pratico</b>'+esc(sl.esempio)+"</div>":"")+
+      (Array.isArray(sl.effetti)&&sl.effetti.length?"<ul>"+sl.effetti.map(x=>"<li>"+esc(x)+"</li>").join("")+"</ul>":""):"")+
     lista(ris.cambia,"Che cosa cambia")+lista(ris.agevolazioni,"Norme e incentivi che si agganciano")+
-    lista(ris.rischi,"Errori da evitare")+lista(ris.decidere,"Che cosa decidere prima")+lista(ris.domande,"Domande per lo studio")+
+    lista(ris.rischi,"Errori da evitare")+lista(ris.decidere,"Che cosa decidere prima, in ordine")+lista(ris.domande,"Domande per lo studio")+
     '<div class="azioni-riga" style="margin-top:12px">'+
       (Array.isArray(ris.domande)&&ris.domande.length?'<button class="bottone piccolo oro" id="btnMentorPdf">Domande allo studio (PDF)</button>':"")+
       (ris.progetto&&ris.progetto.titolo?'<button class="bottone piccolo" id="btnMentorProgetto">Salva come progetto</button>':"")+
@@ -1844,7 +2081,7 @@ function mostraRispostaMentor(domanda,ris){
   "</div>";
   box.insertAdjacentHTML("afterbegin",html);
   const voceM={ id:"mentor-"+Date.now(), tipoLettera:"mentor", titolo:domanda.length>90?domanda.slice(0,87)+"…":domanda, riferimento:"Valutazione interna con il mentor del Radar fiscale",
-    sintesi:ris.inBreve||"", impatto:(ris.cambia||[]).map(x=>"• "+x).join("\n"), opportunita:(ris.rischi||[]).length?"Punti di attenzione:\n"+(ris.rischi||[]).map(x=>"• "+x).join("\n"):null, domande:ris.domande||[], scadenze:[] };
+    sintesi:ris.inBreve||"", impatto:[(ris.saslong&&ris.saslong.esempio)?"Esempio sui nostri numeri: "+ris.saslong.esempio:"",...((ris.saslong&&ris.saslong.effetti)||[]).map(x=>"• "+x),...(ris.cambia||[]).map(x=>"• "+x)].filter(Boolean).join("\n"), opportunita:(ris.rischi||[]).length?"Punti di attenzione:\n"+(ris.rischi||[]).map(x=>"• "+x).join("\n"):null, domande:ris.domande||[], scadenze:[] };
   const bp=box.querySelector("#btnMentorPdf"); if(bp) bp.onclick=()=>scaricaPdfDomande([voceM]);
   const bs=box.querySelector("#btnMentorProgetto"); if(bs) bs.onclick=async()=>{
     const pr=ris.progetto; const id="prog-"+Date.now().toString(36);
@@ -2005,7 +2242,9 @@ async function leggiErroreApi(r){
 async function analizzaPezzo(pezzo,fonte){
   const istruzioni =
 "Profilo dell'azienda: "+stato.profilo+"\n\n"+
-"PROGETTI APERTI DELL'AZIENDA (id: descrizione): "+testoProgettiPerPrompt()+"\n\n"+
+"PROGETTI APERTI DELL'AZIENDA (id: descrizione): "+testoProgettiPerPrompt()+"\n"+
+"QUESTIONI APERTE CHIESTE AL CONSULENTE (id: domanda): "+testoQuestioniPerPrompt()+"\n"+
+"NUMERI DI BILANCIO (per gli esempi): "+testoBilanciPerPrompt().split("\n")[0]+"\n\n"+
 "Leggi il testo della circolare fiscale qui sotto e individua le novità che contano per questa azienda, con particolare attenzione a quelle che toccano i progetti aperti.\n"+
 "Rispondi SOLO con un array JSON valido, senza testo intorno e senza markdown, con al massimo 2 oggetti: scegli le due novità più importanti per questa azienda in questo blocco; se nessuna la riguarda restituisci [].\n"+
 "Sii sintetico: la risposta intera deve restare sotto le 450 parole.\n"+
@@ -2021,6 +2260,7 @@ async function analizzaPezzo(pezzo,fonte){
 "- chi: chi deve muoversi, fra ufficio, commercialista, consulente del lavoro, direzione e soci\n"+
 "- domande: array di 2 domande brevi, in italiano, da rivolgere al commercialista sul caso di questa azienda\n"+
 "- progetti: array degli id dei progetti aperti che questa novità tocca, [] se nessuno\n"+
+"- questioni: array degli id delle questioni aperte a cui questa novità dà una risposta o un elemento nuovo, [] se nessuna\n"+
 "- verdetto: subito se c'è una scadenza vicina, studio se serve una decisione del commercialista, preparare se è lavoro d'ufficio, sapere se non serve fare nulla, ignorare se non riguarda l'azienda\n"+
 "- rilevanza: alta, media, bassa oppure nulla\n"+
 "- categorie: array di 1-3 parole chiave (es. IVA, Immobili, Lavoro, IMU, Accertamento, Adempimenti)\n"+
@@ -2056,6 +2296,8 @@ function normalizzaVoci(lista,fonte){
     verdetto:["subito","studio","preparare","sapere","ignorare"].includes(v.verdetto)?v.verdetto:"studio",
     domande:Array.isArray(v.domande)?v.domande.filter(x=>typeof x==="string"&&x.trim()).slice(0,4):[],
     progetti:Array.isArray(v.progetti)?v.progetti.filter(id=>(stato.progetti||[]).some(p=>p.id===id)):[],
+    questioni:Array.isArray(v.questioni)?v.questioni.filter(id=>(stato.questioni||[]).some(q=>q.id===id)):[],
+    nuovaPer:(Array.isArray(v.progetti)&&v.progetti.length)||(Array.isArray(v.questioni)&&v.questioni.length)?true:false,
     stato:"da valutare",
     scadenze:(Array.isArray(v.scadenze)?v.scadenze:[]).filter(s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s.data))
       .map(s=>({data:s.data,descrizione:s.descrizione||"scadenza",tipo:"adempimento"}))
@@ -2147,6 +2389,7 @@ function mostraProposte(){
       '<span><span class="verdetto '+v.verdetto+'">'+(VERDETTI[v.verdetto]||VERDETTI.sapere).etichetta+"</span> <b>"+esc(v.titolo)+"</b><br>"+
       esc(v.inPratica)+(v.esempio?'<br><i style="color:var(--grigio)">Per esempio: '+esc(v.esempio)+"</i>":"")+
       (v.progetti&&v.progetti.length?'<br><b style="color:var(--oro)">Tocca il progetto: '+esc(v.progetti.map(nomeProgetto).join(", "))+"</b>":"")+
+      (v.questioni&&v.questioni.length?'<br><b style="color:var(--oro)">Risponde alla domanda: '+esc(v.questioni.map(testoQuestione).join(" | "))+"</b>":"")+
       (v.scadenze.length?"<br><i>scadenze: "+v.scadenze.map(s=>dataEstesa(s.data)).join(", ")+"</i>":"")+"</span></label>").join("")+
     '<div class="azioni-riga"><button class="bottone oro" id="btnConferma">Archivia le voci scelte</button></div></div>';
   $("#btnConferma").onclick=async()=>{
@@ -2154,7 +2397,14 @@ function mostraProposte(){
     stato.voci=scelte.concat(stato.voci);
     await salva(); ridisegnaTutto();
     $("#anteprimaVoci").innerHTML=""; $("#testoCircolare").value=""; $("#statoPdf").textContent="oppure trascina qui il file";
-    esito.textContent="Archiviate "+scelte.length+" voci. Le trovi nell'archivio e nel cruscotto.";
+    const riscontri=scelte.filter(v=>v.nuovaPer);
+    esito.textContent="Archiviate "+scelte.length+" voci. Le trovi nell'archivio e nel cruscotto."+(riscontri.length?" "+riscontri.length+" toccano progetti o domande aperte.":"");
+    if(riscontri.length){
+      $("#anteprimaVoci").innerHTML='<div class="anteprima"><b>'+riscontri.length+' novità riguardano cose che avete in programma o che avete chiesto al mentor.</b><div class="azioni-riga" style="margin-top:8px">'+
+        '<button class="bottone piccolo oro" id="btnAvvisoMail">Manda l\'avviso all\'ufficio via mail</button><button class="bottone piccolo" data-vai="cruscotto">Vedi sul cruscotto</button></div></div>';
+      $("#btnAvvisoMail").onclick=()=>mailAvviso(riscontri);
+      $("[data-vai]").onclick=()=>mostraVista("cruscotto");
+    }
   };
 }
 
@@ -2227,7 +2477,7 @@ async function avvia(){
       es.textContent="Collegamento funzionante ("+(stato.lettura.proxy?"proxy":stato.lettura.chiave?"chiave API":"Claude")+"): risposta \""+t.trim()+"\".";
     }catch(e){ es.className="esito errore"; es.textContent="Collegamento non riuscito: "+e.message; }
   };
-  const campiL={lAzienda:"azienda",lIndirizzo:"indirizzo",lReferente:"referente",lEmail:"email",lTelefono:"telefono",lStudio:"studio",lEmailStudio:"emailStudio"};
+  const campiL={lAzienda:"azienda",lIndirizzo:"indirizzo",lReferente:"referente",lEmail:"email",lTelefono:"telefono",lStudio:"studio",lEmailStudio:"emailStudio",lEmailAvvisi:"emailAvvisi"};
   Object.keys(campiL).forEach(id=>$("#"+id).value=stato.lettera[campiL[id]]||"");
   $("#btnSalvaLettera").onclick=async()=>{
     Object.keys(campiL).forEach(id=>stato.lettera[campiL[id]]=$("#"+id).value.trim());
@@ -2265,6 +2515,15 @@ async function avvia(){
   $("#domandaMentor").onkeydown=e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) chiediAlMentor(); };
   $("#btnMentorReset").onclick=()=>{ conversazioneMentor=[]; $("#rispostaMentor").innerHTML=""; $("#domandaMentor").value=""; };
   $("#btnBriefing").onclick=briefingStudio;
+  $("#btnScegliBilancio").onclick=()=>$("#fileBilancio").click();
+  $("#fileBilancio").onchange=e=>{ caricaBilancio(e.target.files[0]); e.target.value=""; };
+  $("#btnBilancioManuale").onclick=()=>apriModuloBilancio(null);
+  $("#btnSalvaBilancio").onclick=salvaBilancio;
+  $("#btnAnnullaBilancio").onclick=()=>{ $("#moduloBilancio").hidden=true; bilancioInModifica=null; };
+  const zb=$("#zonaBilancio");
+  ["dragenter","dragover"].forEach(ev=>zb.addEventListener(ev,e=>{ e.preventDefault(); zb.classList.add("sopra"); }));
+  ["dragleave","drop"].forEach(ev=>zb.addEventListener(ev,e=>{ e.preventDefault(); zb.classList.remove("sopra"); }));
+  zb.addEventListener("drop",e=>{ const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) caricaBilancio(f); });
   $("#btnNuovoProgetto").onclick=()=>{ $("#moduloProgetto").hidden=false; $("#pTitolo").focus(); };
   $("#btnAnnullaProgetto").onclick=()=>{ $("#moduloProgetto").hidden=true; };
   $("#btnSalvaProgetto").onclick=async()=>{
